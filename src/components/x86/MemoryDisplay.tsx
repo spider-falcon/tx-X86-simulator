@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { formatHex } from '@/lib/x86/utils';
-import { STACK_ADDRESS_START } from '@/lib/x86/constants';
+import { STACK_ADDRESS_START, CODE_START_ADDRESS } from '@/lib/x86/constants';
 
 interface MemoryDisplayProps {
     memory: Memory;
@@ -61,7 +61,7 @@ const MemoryDisplay: FC<MemoryDisplayProps> = ({ memory, registers }) => {
                     <MemoryView memory={memory} startAddress={stackTop} numRows={32} ebp={registers.EBP} esp={registers.ESP} stackView={true} />
                 </TabsContent>
                 <TabsContent value="memory">
-                    <MemoryView memory={memory} startAddress={0x00400000} numRows={32} ebp={registers.EBP} esp={registers.ESP} />
+                    <MemoryView memory={memory} startAddress={CODE_START_ADDRESS} numRows={32} ebp={registers.EBP} esp={registers.ESP} />
                 </TabsContent>
             </div>
           </ScrollArea>
