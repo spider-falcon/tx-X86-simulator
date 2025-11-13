@@ -70,7 +70,7 @@ export function step(
   memory: Memory,
   historyLog: string,
   output: string | null,
-  callStack: string[]
+  callStackUpdate: string[]
 } {
   const newRegisters = { ...registers };
   const newFlags = { ...flags };
@@ -268,5 +268,5 @@ export function step(
     newRegisters.EIP += 1; // Simple increment, not realistic but works for our instruction mapping
   }
 
-  return { registers: newRegisters, flags: newFlags, memory: newMemory, historyLog, output, callStack: callStackUpdate };
+  return { registers: newRegisters, flags: newFlags, memory: newMemory, historyLog, output, callStackUpdate };
 }

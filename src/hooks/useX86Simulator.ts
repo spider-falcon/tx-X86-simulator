@@ -49,10 +49,10 @@ export const useX86Simulator = () => {
         registers,
         flags,
         memory,
+        callStack,
         breakpoints,
         toast,
         isRunning,
-        callStack,
         lineMap,
         parsedInstructions,
         labels,
@@ -63,15 +63,15 @@ export const useX86Simulator = () => {
             registers,
             flags,
             memory,
+            callStack,
             breakpoints,
             toast,
             isRunning,
-            callStack,
             lineMap,
             parsedInstructions,
             labels,
         };
-    }, [registers, flags, memory, breakpoints, toast, isRunning, callStack, lineMap, parsedInstructions, labels]);
+    }, [registers, flags, memory, callStack, breakpoints, toast, isRunning, lineMap, parsedInstructions, labels]);
 
 
     const stopRunner = useCallback(() => {
@@ -120,12 +120,12 @@ export const useX86Simulator = () => {
             setOutput(o => [result.output!, ...o].slice(0, 100));
         }
 
-        if (result.callStack.length > 0) {
-            setCallStack(cs => {
-                if (result.callStack[0] === 'ret') {
+        if (result.callStackUpdate.length > 0) {
+             setCallStack(cs => {
+                if (result.callStackUpdate[0] === 'ret') {
                     return cs.slice(1);
                 }
-                return [result.callStack[0], ...cs];
+                return [result.callStackUpdate[0], ...cs];
             });
         }
 
