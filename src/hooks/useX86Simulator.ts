@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import type { Registers, Flags, Memory, ProgramFile } from '@/lib/x86/types';
 import { INITIAL_REGISTERS, INITIAL_FLAGS, MEMORY_SIZE, CODE_START_ADDRESS } from '@/lib/x86/constants';
 import { samplePrograms } from '@/lib/x86/sample-programs';
@@ -9,7 +9,6 @@ import { parseCode } from '@/lib/x86/parser';
 import * as executor from '@/lib/x86/executor';
 import { useToast } from './use-toast';
 import { updateFileCode, addFile as fmAddFile, renameFile as fmRenameFile, deleteFile as fmDeleteFile } from '@/lib/x86/fileManager';
-import { writeMemory } from '@/lib/x86/memoryManager';
 
 export const useX86Simulator = () => {
     const { toast } = useToast();
@@ -32,28 +31,16 @@ export const useX86Simulator = () => {
     const runnerRef = useRef<NodeJS.Timeout | null>(null);
 
     const activeCode = files.find(f => f.name === activeFile)?.code || '';
-    const { instructions: parsedInstructions, labels, lineMap, dataSegment } = parseCode(activeCode);
+    
+    const { instructions: parsedInstructions, labels, lineMap, dataSegment } = useMemo(() => parseCode(activeCode), [activeCode]);
+
     const currentLine = lineMap.get(registers.EIP) || 0;
 
     const loadDataSegment = useCallback(() => {
         const newMemory = new Uint8Array(MEMORY_SIZE);
-        // Simply copy the data segment to the start of memory for now.
-        // A more complex loader would place it at a specific data section address.
         newMemory.set(dataSegment, 0); 
-
-        // Update labels to point to the new memory locations
-        const updatedLabels = new Map(labels);
-        labels.forEach((value, key) => {
-            // Check if this label was part of the data segment
-            // This is a heuristic: code labels are high addresses, data are low.
-            if (value < CODE_START_ADDRESS) {
-                // Here we assume data segment is loaded at address 0
-                updatedLabels.set(key, value);
-            }
-        });
-
         setMemory(newMemory);
-        return { memory: newMemory, labels: updatedLabels };
+        return { memory: newMemory, labels };
     }, [dataSegment, labels]);
 
 
@@ -72,21 +59,19 @@ export const useX86Simulator = () => {
     });
 
     useEffect(() => {
-        // When code changes, reload data segment and update state ref
-        const { memory: newMemory, labels: newLabels } = loadDataSegment();
         stateRef.current = {
             registers,
             flags,
-            memory: newMemory,
+            memory,
             breakpoints,
             toast,
             isRunning,
             callStack,
             lineMap,
             parsedInstructions,
-            labels: newLabels,
+            labels,
         };
-    }, [activeCode, registers, flags, memory, breakpoints, toast, isRunning, callStack, lineMap, parsedInstructions, labels, loadDataSegment]);
+    }, [registers, flags, memory, breakpoints, toast, isRunning, callStack, lineMap, parsedInstructions, labels]);
 
 
     const stopRunner = useCallback(() => {
@@ -153,11 +138,9 @@ export const useX86Simulator = () => {
             return;
         }
         
-        // Before running, ensure the latest data segment is loaded
         const { memory: newMemory, labels: newLabels } = loadDataSegment();
         setMemory(newMemory);
 
-        // Update the stateRef immediately for the runner
         stateRef.current.memory = newMemory;
         stateRef.current.labels = newLabels;
 
@@ -236,8 +219,6 @@ export const useX86Simulator = () => {
             if (newActiveFile) {
                 setActiveFile(newActiveFile);
             } else {
-                // This case happens when all files are deleted.
-                // We might want to create a new default file here.
                 const { files: withNewFile, newName } = fmAddFile([]);
                 setActiveFile(newName);
                 reset();
@@ -273,3 +254,5 @@ export const useX86Simulator = () => {
         currentLine,
     };
 };
+
+    

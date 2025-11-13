@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { FC } from 'react';
@@ -19,7 +20,7 @@ const OutputConsole: FC<OutputConsoleProps> = ({ output }) => {
         viewport.scrollTop = viewport.scrollHeight;
       }
     }
-  }, [output]); // Only run when the output prop changes
+  }, [output]); 
 
   return (
     <Card className="flex flex-col">
@@ -44,3 +45,5 @@ const OutputConsole: FC<OutputConsoleProps> = ({ output }) => {
 };
 
 export default OutputConsole;
+
+    
