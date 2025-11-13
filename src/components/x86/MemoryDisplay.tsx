@@ -13,7 +13,7 @@ interface MemoryDisplayProps {
     registers: Registers;
 }
 
-const MemoryView: FC<{ memory: Memory, startAddress: number, numRows: number, ebp: number, esp: number, stackView?: boolean }> = ({ memory, startAddress, numRows, ebp, esp, stackView = false }) => {
+const MemoryView: FC<{ memory: Memory, startAddress: number, numRows: number, ebp: number, esp: number, stackView?: boolean, dataView?: boolean }> = ({ memory, startAddress, numRows, ebp, esp, stackView = false, dataView = false }) => {
     const rows = [];
     for (let i = 0; i < numRows; i++) {
         const address = stackView ? startAddress - i * 8 : startAddress + i * 8;
@@ -22,10 +22,12 @@ const MemoryView: FC<{ memory: Memory, startAddress: number, numRows: number, eb
         const bytes = Array.from(memory.slice(address, address + 8));
 
         let highlightClass = '';
-        if (address <= esp && esp < address + 8) {
-            highlightClass = 'bg-blue-400/20'; // ESP highlight
-        } else if (address <= ebp && ebp < address + 8) {
-            highlightClass = 'bg-primary/20'; // EBP highlight
+        if (stackView) {
+            if (address <= esp && esp < address + 8) {
+                highlightClass = 'bg-blue-400/20'; // ESP highlight
+            } else if (address <= ebp && ebp < address + 8) {
+                highlightClass = 'bg-primary/20'; // EBP highlight
+            }
         }
         
         rows.push(
@@ -36,6 +38,11 @@ const MemoryView: FC<{ memory: Memory, startAddress: number, numRows: number, eb
                         <span key={j} className="text-center">{byte.toString(16).toUpperCase().padStart(2, '0')}</span>
                     ))}
                 </div>
+                {!dataView &&
+                    <div className="text-muted-foreground/50 w-20 text-xs truncate">
+                        {bytes.map(b => (b >= 32 && b <= 126) ? String.fromCharCode(b) : '.').join('')}
+                    </div>
+                }
             </div>
         );
     }
@@ -51,8 +58,9 @@ const MemoryDisplay: FC<MemoryDisplayProps> = ({ memory, registers }) => {
       </CardHeader>
       <CardContent className="flex-1 p-2 pt-0 flex flex-col">
         <Tabs defaultValue="stack" className="flex-1 flex flex-col">
-          <TabsList className="bg-card border w-full">
+          <TabsList className="bg-card border w-full grid grid-cols-3">
             <TabsTrigger value="stack" className="flex-1">Stack</TabsTrigger>
+            <TabsTrigger value="data" className="flex-1">.data</TabsTrigger>
             <TabsTrigger value="memory" className="flex-1">Memory</TabsTrigger>
           </TabsList>
           <ScrollArea className="flex-1 mt-2">
@@ -60,8 +68,11 @@ const MemoryDisplay: FC<MemoryDisplayProps> = ({ memory, registers }) => {
                 <TabsContent value="stack">
                     <MemoryView memory={memory} startAddress={stackTop} numRows={32} ebp={registers.EBP} esp={registers.ESP} stackView={true} />
                 </TabsContent>
+                <TabsContent value="data">
+                    <MemoryView memory={memory} startAddress={0} numRows={32} ebp={-1} esp={-1} dataView={true} />
+                </TabsContent>
                 <TabsContent value="memory">
-                    <MemoryView memory={memory} startAddress={CODE_START_ADDRESS} numRows={32} ebp={registers.EBP} esp={registers.ESP} />
+                    <MemoryView memory={memory} startAddress={CODE_START_ADDRESS} numRows={32} ebp={-1} esp={-1} />
                 </TabsContent>
             </div>
           </ScrollArea>

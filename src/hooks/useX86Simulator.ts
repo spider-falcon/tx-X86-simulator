@@ -9,6 +9,7 @@ import { parseCode } from '@/lib/x86/parser';
 import * as executor from '@/lib/x86/executor';
 import { useToast } from './use-toast';
 import { updateFileCode, addFile as fmAddFile, renameFile as fmRenameFile, deleteFile as fmDeleteFile } from '@/lib/x86/fileManager';
+import { writeMemory } from '@/lib/x86/memoryManager';
 
 export const useX86Simulator = () => {
     const { toast } = useToast();
@@ -31,8 +32,30 @@ export const useX86Simulator = () => {
     const runnerRef = useRef<NodeJS.Timeout | null>(null);
 
     const activeCode = files.find(f => f.name === activeFile)?.code || '';
-    const { instructions: parsedInstructions, labels, lineMap } = parseCode(activeCode);
+    const { instructions: parsedInstructions, labels, lineMap, dataSegment } = parseCode(activeCode);
     const currentLine = lineMap.get(registers.EIP) || 0;
+
+    const loadDataSegment = useCallback(() => {
+        const newMemory = new Uint8Array(MEMORY_SIZE);
+        // Simply copy the data segment to the start of memory for now.
+        // A more complex loader would place it at a specific data section address.
+        newMemory.set(dataSegment, 0); 
+
+        // Update labels to point to the new memory locations
+        const updatedLabels = new Map(labels);
+        labels.forEach((value, key) => {
+            // Check if this label was part of the data segment
+            // This is a heuristic: code labels are high addresses, data are low.
+            if (value < CODE_START_ADDRESS) {
+                // Here we assume data segment is loaded at address 0
+                updatedLabels.set(key, value);
+            }
+        });
+
+        setMemory(newMemory);
+        return { memory: newMemory, labels: updatedLabels };
+    }, [dataSegment, labels]);
+
 
     // Refs to hold the latest state for the run loop
     const stateRef = useRef({
@@ -49,19 +72,21 @@ export const useX86Simulator = () => {
     });
 
     useEffect(() => {
+        // When code changes, reload data segment and update state ref
+        const { memory: newMemory, labels: newLabels } = loadDataSegment();
         stateRef.current = {
             registers,
             flags,
-            memory,
+            memory: newMemory,
             breakpoints,
             toast,
             isRunning,
             callStack,
             lineMap,
             parsedInstructions,
-            labels,
+            labels: newLabels,
         };
-    }, [registers, flags, memory, breakpoints, toast, isRunning, callStack, lineMap, parsedInstructions, labels]);
+    }, [activeCode, registers, flags, memory, breakpoints, toast, isRunning, callStack, lineMap, parsedInstructions, labels, loadDataSegment]);
 
 
     const stopRunner = useCallback(() => {
@@ -76,14 +101,15 @@ export const useX86Simulator = () => {
         stopRunner();
         setRegisters(INITIAL_REGISTERS);
         setFlags(INITIAL_FLAGS);
-        setMemory(new Uint8Array(MEMORY_SIZE));
+        const { memory: newMemory } = loadDataSegment();
+        setMemory(newMemory);
         setHistory([]);
         setOutput([]);
         setCallStack([]);
         setCycles(0);
         setExecutionTime(0);
         toast({ title: "Simulator Reset", description: "State cleared." });
-    }, [toast, stopRunner]);
+    }, [toast, stopRunner, loadDataSegment]);
 
     const step = useCallback((isRun = false) => {
         const currentState = stateRef.current;
@@ -126,6 +152,14 @@ export const useX86Simulator = () => {
             stopRunner();
             return;
         }
+        
+        // Before running, ensure the latest data segment is loaded
+        const { memory: newMemory, labels: newLabels } = loadDataSegment();
+        setMemory(newMemory);
+
+        // Update the stateRef immediately for the runner
+        stateRef.current.memory = newMemory;
+        stateRef.current.labels = newLabels;
 
         setIsRunning(true);
         const startTime = performance.now();
@@ -147,7 +181,7 @@ export const useX86Simulator = () => {
                 stopRunner();
             }
         }, 50); // Speed of execution
-    }, [step, stopRunner]);
+    }, [step, stopRunner, loadDataSegment]);
     
     useEffect(() => {
         return () => {
@@ -171,7 +205,8 @@ export const useX86Simulator = () => {
 
     const updateCode = useCallback((fileName: string, newCode: string) => {
         setFiles(currentFiles => updateFileCode(currentFiles, fileName, newCode));
-    }, []);
+        reset();
+    }, [reset]);
 
     const addFile = useCallback(() => {
         setFiles(currentFiles => {
@@ -179,19 +214,21 @@ export const useX86Simulator = () => {
             setActiveFile(newName);
             return newFiles;
         });
-    }, []);
+        reset();
+    }, [reset]);
 
     const renameFile = useCallback((oldName: string, newName: string) => {
         setFiles(currentFiles => {
             const { files: newFiles, success } = fmRenameFile(currentFiles, oldName, newName);
             if (success) {
                 setActiveFile(newName);
+                reset();
             } else {
                 toast({ variant: "destructive", title: "Rename failed", description: `A file named "${newName}" already exists.` });
             }
             return newFiles;
         });
-    }, [toast]);
+    }, [toast, reset]);
 
     const deleteFile = useCallback((fileName: string) => {
         setFiles(currentFiles => {
@@ -203,11 +240,13 @@ export const useX86Simulator = () => {
                 // We might want to create a new default file here.
                 const { files: withNewFile, newName } = fmAddFile([]);
                 setActiveFile(newName);
+                reset();
                 return withNewFile;
             }
+            reset();
             return newFiles;
         });
-    }, [activeFile]);
+    }, [activeFile, reset]);
 
     return {
         registers,
