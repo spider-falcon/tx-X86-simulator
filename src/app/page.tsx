@@ -57,7 +57,7 @@ export default function Home() {
         <Header cycles={simulator.cycles} executionTime={simulator.executionTime} />
         <div className="flex flex-col lg:flex-row gap-4 flex-1 min-h-0 overflow-hidden">
           {/* Left Column */}
-          <div className="flex flex-col gap-4 lg:w-1/2 min-h-0 overflow-hidden">
+          <div className="flex flex-col gap-4 lg:w-1/2 min-h-0">
             <FileTabs
               files={simulator.files}
               activeFile={simulator.activeFile}
