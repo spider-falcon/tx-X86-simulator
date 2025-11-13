@@ -55,9 +55,9 @@ export default function Home() {
     <>
       <main className="bg-background min-h-screen text-foreground font-body p-2 sm:p-4 flex flex-col gap-4">
         <Header cycles={simulator.cycles} executionTime={simulator.executionTime} />
-        <div className="flex flex-col lg:flex-row gap-4 flex-1 min-h-0">
+        <div className="flex flex-col lg:flex-row gap-4 flex-1 min-h-0 overflow-hidden">
           {/* Left Column */}
-          <div className="flex flex-col gap-4 lg:w-1/2 min-h-0">
+          <div className="flex flex-col gap-4 lg:w-1/2 min-h-0 overflow-hidden">
             <FileTabs
               files={simulator.files}
               activeFile={simulator.activeFile}
@@ -85,7 +85,7 @@ export default function Home() {
           </div>
 
           {/* Right Column */}
-          <div className="flex flex-col gap-4 lg:w-1/2 min-h-0">
+          <div className="flex flex-col gap-4 lg:w-1/2 min-h-0 overflow-hidden">
             <RegisterDisplay registers={simulator.registers} flags={simulator.flags} />
             <MemoryDisplay memory={simulator.memory} registers={simulator.registers} />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 min-h-0">

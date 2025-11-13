@@ -1,7 +1,7 @@
 "use client";
 
 import type { FC } from 'react';
-import { useMemo } from 'react';
+import { useMemo, useRef, useEffect } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -15,11 +15,27 @@ interface CodeEditorProps {
 
 const CodeEditor: FC<CodeEditorProps> = ({ code, onCodeChange, breakpoints, toggleBreakpoint, currentLine }) => {
   const lineCount = useMemo(() => code.split('\n').length, [code]);
+  const lineNumbersRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const handleScroll = () => {
+    if (lineNumbersRef.current && textareaRef.current) {
+        lineNumbersRef.current.scrollTop = textareaRef.current.scrollTop;
+    }
+  };
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.addEventListener('scroll', handleScroll);
+      return () => textarea.removeEventListener('scroll', handleScroll);
+    }
+  }, []);
 
   return (
     <Card className="flex-1 flex flex-col min-h-[300px] overflow-hidden">
       <CardContent className="p-0 flex-1 flex">
-        <div className="w-12 sm:w-16 flex-shrink-0 bg-muted/50 p-2 text-right font-code text-muted-foreground select-none overflow-y-auto">
+        <div ref={lineNumbersRef} className="w-12 sm:w-16 flex-shrink-0 bg-muted/50 p-2 text-right font-code text-muted-foreground select-none overflow-y-hidden">
           {Array.from({ length: lineCount }, (_, i) => i + 1).map(lineNum => (
             <div key={lineNum} className="relative flex items-center justify-end h-6">
               <span>{lineNum}</span>
@@ -37,6 +53,7 @@ const CodeEditor: FC<CodeEditorProps> = ({ code, onCodeChange, breakpoints, togg
           ))}
         </div>
         <Textarea
+          ref={textareaRef}
           value={code}
           onChange={(e) => onCodeChange(e.target.value)}
           className="flex-1 h-full resize-none border-0 rounded-none font-code bg-transparent focus-visible:ring-0 leading-6"
