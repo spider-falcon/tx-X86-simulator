@@ -4,31 +4,49 @@ import { pushStack, popStack, readMemory, writeMemory } from './memoryManager';
 import { updateFlags } from './registerManager';
 
 function getOperandValue(operand: string, registers: Registers, memory: Memory): number {
+    if (!operand) return 0;
+    
+    // Memory operands like [eax], [eax+4], [my_var]
     if (operand.startsWith('[') && operand.endsWith(']')) {
-        const address = getOperandValue(operand.slice(1, -1), registers, memory);
+        const addressExpression = operand.slice(1, -1);
+        // Simple expression parsing for things like 'eax+4'
+        const parts = addressExpression.split('+');
+        let address = 0;
+        for (const part of parts) {
+            address += getOperandValue(part.trim(), registers, memory);
+        }
         return readMemory(address, 4, memory);
     }
-    if (registers[operand] !== undefined) {
-        return registers[operand];
+
+    // Register operands
+    if (registers[operand.toUpperCase()] !== undefined) {
+        return registers[operand.toUpperCase()];
+    }
+
+    // Immediate values (decimal, hex)
+    if (operand.toLowerCase().startsWith('0x')) {
+        return parseInt(operand, 16);
     }
     const value = parseInt(operand, 10);
     if (!isNaN(value)) {
         return value;
     }
-    const hexValue = parseInt(operand, 16);
-    if (!isNaN(hexValue)) {
-        return hexValue;
-    }
-    return 0; // Should handle labels here
+    
+    return 0; // Should handle labels/vars here, but parser does that
 }
 
 
 function setOperandValue(operand: string, value: number, registers: Registers, memory: Memory) {
     if (operand.startsWith('[') && operand.endsWith(']')) {
-        const address = getOperandValue(operand.slice(1, -1), registers, memory);
+        const addressExpression = operand.slice(1, -1);
+        const parts = addressExpression.split('+');
+        let address = 0;
+        for (const part of parts) {
+            address += getOperandValue(part.trim(), registers, memory);
+        }
         writeMemory(address, value, 4, memory);
-    } else if (registers[operand] !== undefined) {
-        registers[operand] = value;
+    } else if (registers[operand.toUpperCase()] !== undefined) {
+        registers[operand.toUpperCase()] = value;
     }
 }
 
@@ -38,7 +56,8 @@ export function step(
   registers: Registers,
   flags: Flags,
   memory: Memory,
-  labels: Map<string, number>
+  labels: Map<string, number>,
+  stopRunner: () => void
 ): {
   registers: Registers,
   flags: Flags,
@@ -53,7 +72,7 @@ export function step(
   let callStackUpdate: string[] = [];
 
   let historyLog = `${formatHex(registers.EIP, 8)}: ${instruction.operation} ${instruction.operands.join(', ')}`;
-  let output = null;
+  let output: string | null = null;
 
   const op1 = instruction.operands[0];
   const op2 = instruction.operands[1];
@@ -70,28 +89,35 @@ export function step(
     case 'add':
       val1 = getOperandValue(op1, newRegisters, newMemory);
       val2 = getOperandValue(op2, newRegisters, newMemory);
-      result = val1 + val2;
+      result = (val1 + val2) | 0; // Ensure 32-bit integer
       setOperandValue(op1, result, newRegisters, newMemory);
-      updateFlags(result, newFlags);
+      updateFlags(result, val1, val2, newFlags, 'add');
       break;
+    case 'sub':
+        val1 = getOperandValue(op1, newRegisters, newMemory);
+        val2 = getOperandValue(op2, newRegisters, newMemory);
+        result = (val1 - val2) | 0;
+        setOperandValue(op1, result, newRegisters, newMemory);
+        updateFlags(result, val1, val2, newFlags, 'sub');
+        break;
     case 'xor':
         val1 = getOperandValue(op1, newRegisters, newMemory);
         val2 = getOperandValue(op2, newRegisters, newMemory);
-        result = val1 ^ val2;
+        result = (val1 ^ val2) | 0;
         setOperandValue(op1, result, newRegisters, newMemory);
-        updateFlags(result, newFlags);
+        updateFlags(result, val1, val2, newFlags, 'xor');
         break;
     case 'inc':
       val1 = getOperandValue(op1, newRegisters, newMemory);
-      result = val1 + 1;
+      result = (val1 + 1) | 0;
       setOperandValue(op1, result, newRegisters, newMemory);
-      updateFlags(result, newFlags);
+      updateFlags(result, val1, 1, newFlags, 'add');
       break;
     case 'dec':
       val1 = getOperandValue(op1, newRegisters, newMemory);
-      result = val1 - 1;
+      result = (val1 - 1) | 0;
       setOperandValue(op1, result, newRegisters, newMemory);
-      updateFlags(result, newFlags);
+      updateFlags(result, val1, 1, newFlags, 'sub');
       break;
     case 'push':
       val1 = getOperandValue(op1, newRegisters, newMemory);
@@ -120,46 +146,120 @@ export function step(
     case 'cmp':
         val1 = getOperandValue(op1, newRegisters, newMemory);
         val2 = getOperandValue(op2, newRegisters, newMemory);
-        result = val1 - val2;
-        updateFlags(result, newFlags);
-        newFlags.CF = val1 < val2;
+        result = (val1 - val2) | 0;
+        updateFlags(result, val1, val2, newFlags, 'sub');
         break;
-    case 'jle':
-        if (newFlags.ZF || (newFlags.SF !== newFlags.OF)) {
-            const targetAddress = labels.get(op1);
-            if (targetAddress !== undefined) {
-                newRegisters.EIP = targetAddress;
+    case 'jmp':
+        const jmpTarget = labels.get(op1);
+        if (jmpTarget !== undefined) {
+            newRegisters.EIP = jmpTarget;
+            jump = true;
+        }
+        break;
+    case 'je':
+    case 'jz':
+        if (newFlags.ZF) {
+            const target = labels.get(op1);
+            if (target !== undefined) {
+                newRegisters.EIP = target;
                 jump = true;
             }
         }
         break;
+    case 'jne':
     case 'jnz':
         if (!newFlags.ZF) {
-            const targetAddress = labels.get(op1);
-            if (targetAddress !== undefined) {
-                newRegisters.EIP = targetAddress;
+            const target = labels.get(op1);
+            if (target !== undefined) {
+                newRegisters.EIP = target;
+                jump = true;
+            }
+        }
+        break;
+    case 'jg':
+    case 'jnle':
+        if (!newFlags.ZF && newFlags.SF === newFlags.OF) {
+            const target = labels.get(op1);
+            if (target !== undefined) {
+                newRegisters.EIP = target;
+                jump = true;
+            }
+        }
+        break;
+    case 'jge':
+    case 'jnl':
+        if (newFlags.SF === newFlags.OF) {
+            const target = labels.get(op1);
+            if (target !== undefined) {
+                newRegisters.EIP = target;
+                jump = true;
+            }
+        }
+        break;
+    case 'jl':
+    case 'jnge':
+        if (newFlags.SF !== newFlags.OF) {
+            const target = labels.get(op1);
+            if (target !== undefined) {
+                newRegisters.EIP = target;
+                jump = true;
+            }
+        }
+        break;
+    case 'jle':
+    case 'jng':
+        if (newFlags.ZF || (newFlags.SF !== newFlags.OF)) {
+            const target = labels.get(op1);
+            if (target !== undefined) {
+                newRegisters.EIP = target;
                 jump = true;
             }
         }
         break;
     case 'mul':
         val1 = getOperandValue(op1, newRegisters, newMemory);
-        result = newRegisters.EAX * val1;
-        newRegisters.EAX = result & 0xFFFFFFFF;
-        newRegisters.EDX = (result / 0x100000000) & 0xFFFFFFFF;
-        // Simplified flag update
-        newFlags.OF = newRegisters.EDX !== 0;
-        newFlags.CF = newRegisters.EDX !== 0;
+        const eax = newRegisters.EAX;
+        const fullResult = BigInt(eax) * BigInt(val1);
+        const low = Number(fullResult & BigInt(0xFFFFFFFF));
+        const high = Number(fullResult >> BigInt(32));
+
+        newRegisters.EAX = low;
+        newRegisters.EDX = high;
+
+        newFlags.OF = high !== 0;
+        newFlags.CF = high !== 0;
         break;
     case 'int':
-        output = `Interrupt 0x80 called with EAX=${newRegisters.EAX}`;
+        const interruptNum = getOperandValue(op1, newRegisters, newMemory);
+        if (interruptNum === 0x80) { // Linux syscall
+            if (newRegisters.EAX === 1) { // sys_exit
+                output = `Program exited with code ${newRegisters.EBX}.`;
+                stopRunner();
+            } else if (newRegisters.EAX === 4) { // sys_write
+                // Simplified: assuming EBX=1 (stdout), ECX=address, EDX=length
+                const address = newRegisters.ECX;
+                const length = newRegisters.EDX;
+                let str = '';
+                for (let i = 0; i < length; i++) {
+                    const charCode = readMemory(address + i, 1, newMemory);
+                    if (charCode === 0) break; // Null terminator
+                    str += String.fromCharCode(charCode);
+                }
+                output = str;
+            }
+        } else {
+            output = `Interrupt ${formatHex(interruptNum)} called.`;
+        }
         break;
     case 'nop':
         break; // No operation
+    default:
+        historyLog += ` (Error: Unknown instruction '${instruction.operation}')`;
+        break;
   }
   
   if(!jump) {
-    newRegisters.EIP += 1; // Simple increment, not realistic
+    newRegisters.EIP += 1; // Simple increment, not realistic but works for our instruction mapping
   }
 
   return { registers: newRegisters, flags: newFlags, memory: newMemory, historyLog, output, callStack: callStackUpdate };

@@ -8,7 +8,7 @@ import { samplePrograms } from '@/lib/x86/sample-programs';
 import { parseCode } from '@/lib/x86/parser';
 import * as executor from '@/lib/x86/executor';
 import { useToast } from './use-toast';
-import { updateFileCode } from '@/lib/x86/fileManager';
+import { updateFileCode, addFile as fmAddFile, renameFile as fmRenameFile, deleteFile as fmDeleteFile } from '@/lib/x86/fileManager';
 
 export const useX86Simulator = () => {
     const { toast } = useToast();
@@ -90,15 +90,15 @@ export const useX86Simulator = () => {
         const instructionIndex = currentState.registers.EIP - CODE_START_ADDRESS;
         
         if (instructionIndex < 0 || instructionIndex >= currentState.parsedInstructions.length) {
-            if (!isRun || currentState.isRunning) { // Only show toast if it was a single step or if it was running
+            if (!isRun || currentState.isRunning) {
                 currentState.toast({ variant: "destructive", title: "Execution Halted", description: "End of program reached." });
             }
             stopRunner();
-            return false;
+            return { shouldContinue: false };
         }
 
         const instruction = currentState.parsedInstructions[instructionIndex];
-        const result = executor.step(instruction, currentState.registers, currentState.flags, currentState.memory, currentState.labels);
+        const result = executor.step(instruction, currentState.registers, currentState.flags, currentState.memory, currentState.labels, stopRunner);
 
         setRegisters(result.registers);
         setFlags(result.flags);
@@ -118,7 +118,7 @@ export const useX86Simulator = () => {
         }
 
         setCycles(c => c + 1);
-        return true;
+        return { shouldContinue: true };
     }, [stopRunner]);
 
     const run = useCallback(() => {
@@ -142,7 +142,8 @@ export const useX86Simulator = () => {
                 return;
             }
 
-            if (!step(true)) {
+            const { shouldContinue } = step(true);
+            if (!shouldContinue) {
                 stopRunner();
             }
         }, 50); // Speed of execution
@@ -169,8 +170,44 @@ export const useX86Simulator = () => {
     }, []);
 
     const updateCode = useCallback((fileName: string, newCode: string) => {
-        setFiles(files => updateFileCode(files, fileName, newCode));
+        setFiles(currentFiles => updateFileCode(currentFiles, fileName, newCode));
     }, []);
+
+    const addFile = useCallback(() => {
+        setFiles(currentFiles => {
+            const { files: newFiles, newName } = fmAddFile(currentFiles);
+            setActiveFile(newName);
+            return newFiles;
+        });
+    }, []);
+
+    const renameFile = useCallback((oldName: string, newName: string) => {
+        setFiles(currentFiles => {
+            const { files: newFiles, success } = fmRenameFile(currentFiles, oldName, newName);
+            if (success) {
+                setActiveFile(newName);
+            } else {
+                toast({ variant: "destructive", title: "Rename failed", description: `A file named "${newName}" already exists.` });
+            }
+            return newFiles;
+        });
+    }, [toast]);
+
+    const deleteFile = useCallback((fileName: string) => {
+        setFiles(currentFiles => {
+            const { files: newFiles, newActiveFile } = fmDeleteFile(currentFiles, fileName, activeFile);
+            if (newActiveFile) {
+                setActiveFile(newActiveFile);
+            } else {
+                // This case happens when all files are deleted.
+                // We might want to create a new default file here.
+                const { files: withNewFile, newName } = fmAddFile([]);
+                setActiveFile(newName);
+                return withNewFile;
+            }
+            return newFiles;
+        });
+    }, [activeFile]);
 
     return {
         registers,
@@ -180,6 +217,9 @@ export const useX86Simulator = () => {
         activeFile,
         setActiveFile,
         updateCode,
+        addFile,
+        renameFile,
+        deleteFile,
         breakpoints,
         toggleBreakpoint,
         history,
