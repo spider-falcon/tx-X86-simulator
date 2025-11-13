@@ -13,15 +13,23 @@ interface MemoryDisplayProps {
     registers: Registers;
 }
 
-const MemoryView: FC<{ memory: Memory, startAddress: number, numRows: number, highlightAddress?: number }> = ({ memory, startAddress, numRows, highlightAddress }) => {
+const MemoryView: FC<{ memory: Memory, startAddress: number, numRows: number, ebp: number, esp: number, stackView?: boolean }> = ({ memory, startAddress, numRows, ebp, esp, stackView = false }) => {
     const rows = [];
     for (let i = 0; i < numRows; i++) {
-        const address = startAddress + i * 8;
-        if (address + 8 > memory.length) break;
+        const address = stackView ? startAddress - i * 8 : startAddress + i * 8;
+        if (address < 0 || address + 8 > memory.length) continue;
         
         const bytes = Array.from(memory.slice(address, address + 8));
+
+        let highlightClass = '';
+        if (address <= esp && esp < address + 8) {
+            highlightClass = 'bg-blue-400/20'; // ESP highlight
+        } else if (address <= ebp && ebp < address + 8) {
+            highlightClass = 'bg-primary/20'; // EBP highlight
+        }
+        
         rows.push(
-            <div key={address} className={`flex items-center gap-2 p-1 rounded ${highlightAddress && address <= highlightAddress && highlightAddress < address + 8 ? 'bg-primary/20' : ''}`}>
+            <div key={address} className={`flex items-center gap-2 p-1 rounded ${highlightClass}`}>
                 <span className="text-muted-foreground w-20">{formatHex(address)}:</span>
                 <div className="flex-1 grid grid-cols-8 gap-1">
                     {bytes.map((byte, j) => (
@@ -35,6 +43,7 @@ const MemoryView: FC<{ memory: Memory, startAddress: number, numRows: number, hi
 }
 
 const MemoryDisplay: FC<MemoryDisplayProps> = ({ memory, registers }) => {
+  const stackTop = Math.min(STACK_ADDRESS_START, registers.EBP + 16);
   return (
     <Card className="flex-1 flex flex-col min-h-[250px]">
       <CardHeader>
@@ -49,10 +58,10 @@ const MemoryDisplay: FC<MemoryDisplayProps> = ({ memory, registers }) => {
           <ScrollArea className="flex-1 mt-2">
             <div className="font-code text-xs p-2">
                 <TabsContent value="stack">
-                    <MemoryView memory={memory} startAddress={registers.ESP} numRows={16} highlightAddress={registers.EBP} />
+                    <MemoryView memory={memory} startAddress={stackTop} numRows={32} ebp={registers.EBP} esp={registers.ESP} stackView={true} />
                 </TabsContent>
                 <TabsContent value="memory">
-                    <MemoryView memory={memory} startAddress={0x00400000} numRows={32} />
+                    <MemoryView memory={memory} startAddress={0x00400000} numRows={32} ebp={registers.EBP} esp={registers.ESP} />
                 </TabsContent>
             </div>
           </ScrollArea>

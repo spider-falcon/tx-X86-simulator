@@ -30,6 +30,10 @@ export const useX86Simulator = () => {
     const [isRunning, setIsRunning] = useState(false);
     const runnerRef = useRef<NodeJS.Timeout | null>(null);
 
+    const activeCode = files.find(f => f.name === activeFile)?.code || '';
+    const { instructions: parsedInstructions, labels, lineMap } = parseCode(activeCode);
+    const currentLine = lineMap.get(registers.EIP) || 0;
+
     // Refs to hold the latest state for the run loop
     const stateRef = useRef({
         registers,
@@ -38,6 +42,10 @@ export const useX86Simulator = () => {
         breakpoints,
         toast,
         isRunning,
+        callStack,
+        lineMap,
+        parsedInstructions,
+        labels,
     });
 
     useEffect(() => {
@@ -48,13 +56,13 @@ export const useX86Simulator = () => {
             breakpoints,
             toast,
             isRunning,
+            callStack,
+            lineMap,
+            parsedInstructions,
+            labels,
         };
-    }, [registers, flags, memory, breakpoints, toast, isRunning]);
+    }, [registers, flags, memory, breakpoints, toast, isRunning, callStack, lineMap, parsedInstructions, labels]);
 
-    const activeCode = files.find(f => f.name === activeFile)?.code || '';
-    const parsedInstructions = parseCode(activeCode);
-    const lineMap = new Map(parsedInstructions.map((inst, i) => [CODE_START_ADDRESS + i, inst.line]));
-    const currentLine = lineMap.get(registers.EIP) || 0;
 
     const stopRunner = useCallback(() => {
         if (runnerRef.current) {
@@ -81,31 +89,40 @@ export const useX86Simulator = () => {
         const currentState = stateRef.current;
         const instructionIndex = currentState.registers.EIP - CODE_START_ADDRESS;
         
-        if (instructionIndex < 0 || instructionIndex >= parsedInstructions.length) {
-            if (isRun) {
+        if (instructionIndex < 0 || instructionIndex >= currentState.parsedInstructions.length) {
+            if (!isRun || currentState.isRunning) { // Only show toast if it was a single step or if it was running
                 currentState.toast({ variant: "destructive", title: "Execution Halted", description: "End of program reached." });
-            } else {
-                currentState.toast({ variant: "destructive", title: "Execution Halted", description: "Program counter is out of bounds." });
             }
             stopRunner();
             return false;
         }
 
-        const instruction = parsedInstructions[instructionIndex];
-        const result = executor.step(instruction, currentState.registers, currentState.flags, currentState.memory);
+        const instruction = currentState.parsedInstructions[instructionIndex];
+        const result = executor.step(instruction, currentState.registers, currentState.flags, currentState.memory, currentState.labels);
 
         setRegisters(result.registers);
         setFlags(result.flags);
         setHistory(h => [result.historyLog, ...h].slice(0, 100));
+        
         if (result.output) {
             setOutput(o => [result.output!, ...o].slice(0, 100));
         }
+
+        if (result.callStack.length > 0) {
+            setCallStack(cs => {
+                if (result.callStack[0] === 'ret') {
+                    return cs.slice(1);
+                }
+                return [result.callStack[0], ...cs];
+            });
+        }
+
         setCycles(c => c + 1);
         return true;
-    }, [parsedInstructions, stopRunner]);
+    }, [stopRunner]);
 
     const run = useCallback(() => {
-        if(isRunning) {
+        if(stateRef.current.isRunning) {
             stopRunner();
             return;
         }
@@ -114,10 +131,10 @@ export const useX86Simulator = () => {
         const startTime = performance.now();
 
         runnerRef.current = setInterval(() => {
-            const { registers: currentRegisters, breakpoints: currentBreakpoints, toast: currentToast } = stateRef.current;
+            const { registers: currentRegisters, breakpoints: currentBreakpoints, toast: currentToast, lineMap: currentLineMap } = stateRef.current;
             setExecutionTime(performance.now() - startTime);
             
-            const currentLineForBreakpoint = lineMap.get(currentRegisters.EIP);
+            const currentLineForBreakpoint = currentLineMap.get(currentRegisters.EIP);
             
             if (currentLineForBreakpoint && currentBreakpoints.has(currentLineForBreakpoint)) {
                 stopRunner();
@@ -129,7 +146,7 @@ export const useX86Simulator = () => {
                 stopRunner();
             }
         }, 50); // Speed of execution
-    }, [isRunning, step, lineMap, stopRunner]);
+    }, [step, stopRunner]);
     
     useEffect(() => {
         return () => {
