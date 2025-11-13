@@ -1,3 +1,4 @@
+
 import type { Registers, Flags, Memory, Instruction } from './types';
 import { formatHex } from './utils';
 import { pushStack, popStack, readMemory, writeMemory } from './memoryManager';
@@ -73,7 +74,7 @@ export function step(
 } {
   const newRegisters = { ...registers };
   const newFlags = { ...flags };
-  const newMemory = memory; // Using the same memory instance for modifications
+  const newMemory = new Uint8Array(memory); // Create a copy to ensure changes are detected
   let callStackUpdate: string[] = [];
 
   let historyLog = `${formatHex(registers.EIP, 8)}: ${instruction.operation} ${instruction.operands.join(', ')}`;

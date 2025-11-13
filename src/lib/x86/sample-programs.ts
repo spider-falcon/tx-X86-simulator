@@ -1,3 +1,4 @@
+
 import type { ProgramFile } from './types';
 
 export const samplePrograms: ProgramFile[] = [
@@ -116,6 +117,36 @@ fib_loop:
 
 fib_end:
     ret
+`
+  },
+  {
+    name: "stack_test.asm",
+    code: `section .data
+    ; Define some data if needed, not directly used in this stack example
+
+section .text
+    global _start
+
+_start:
+    ; Push values onto the stack
+    mov eax, 10      ; Load value 10 into EAX
+    push eax         ; Push EAX (10) onto the stack
+
+    mov ebx, 20      ; Load value 20 into EBX
+    push ebx         ; Push EBX (20) onto the stack
+
+    mov ecx, 30      ; Load value 30 into ECX
+    push ecx         ; Push ECX (30) onto the stack
+
+    ; Pop values from the stack (LIFO - Last In, First Out)
+    pop edx          ; Pop the top value (30) into EDX
+    pop esi          ; Pop the next value (20) into ESI
+    pop edi          ; Pop the last value (10) into EDI
+
+    ; Exit the program
+    mov eax, 1       ; System call for exit
+    xor ebx, ebx     ; Exit code 0
+    int 0x80         ; Invoke kernel
 `
   }
 ];

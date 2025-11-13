@@ -113,6 +113,7 @@ export const useX86Simulator = () => {
 
         setRegisters(result.registers);
         setFlags(result.flags);
+        setMemory(result.memory);
         setHistory(h => [result.historyLog, ...h].slice(0, 100));
         
         if (result.output) {
@@ -254,5 +255,3 @@ export const useX86Simulator = () => {
         currentLine,
     };
 };
-
-    
