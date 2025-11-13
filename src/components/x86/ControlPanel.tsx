@@ -3,7 +3,7 @@
 import type { FC } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Play, StepForward, RotateCcw, Pause } from 'lucide-react';
+import { Play, StepForward, RotateCcw, Pause, Square } from 'lucide-react';
 
 interface ControlPanelProps {
   onStep: () => void;
@@ -19,15 +19,15 @@ const ControlPanel: FC<ControlPanelProps> = ({ onStep, onRun, onReset, isRunning
         <CardTitle className="text-base">Execution Controls</CardTitle>
       </CardHeader>
       <CardContent className="flex items-center gap-2">
-        <Button onClick={onRun} variant="default" className="flex-1 bg-primary hover:bg-primary/90" disabled={isRunning}>
-          {isRunning ? <Pause /> : <Play />}
-          {isRunning ? 'Running...' : 'Run'}
+        <Button onClick={onRun} variant="default" className="flex-1 bg-primary hover:bg-primary/90">
+          {isRunning ? <Square /> : <Play />}
+          {isRunning ? 'Stop' : 'Run'}
         </Button>
         <Button onClick={onStep} variant="outline" className="flex-1" disabled={isRunning}>
           <StepForward />
           Step
         </Button>
-        <Button onClick={onReset} variant="destructive" className="flex-1" disabled={isRunning}>
+        <Button onClick={onReset} variant="destructive" className="flex-1">
           <RotateCcw />
           Reset
         </Button>

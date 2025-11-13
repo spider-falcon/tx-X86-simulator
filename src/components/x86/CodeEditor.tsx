@@ -1,7 +1,7 @@
 "use client";
 
 import type { FC } from 'react';
-import { useState, useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -19,14 +19,14 @@ const CodeEditor: FC<CodeEditorProps> = ({ code, onCodeChange, breakpoints, togg
   return (
     <Card className="flex-1 flex flex-col min-h-[300px] overflow-hidden">
       <CardContent className="p-0 flex-1 flex">
-        <div className="w-12 sm:w-16 flex-shrink-0 bg-muted/50 p-2 text-right font-code text-muted-foreground select-none">
+        <div className="w-12 sm:w-16 flex-shrink-0 bg-muted/50 p-2 text-right font-code text-muted-foreground select-none overflow-y-auto">
           {Array.from({ length: lineCount }, (_, i) => i + 1).map(lineNum => (
             <div key={lineNum} className="relative flex items-center justify-end h-6">
               <span>{lineNum}</span>
               <button
                 onClick={() => toggleBreakpoint(lineNum)}
                 className={`ml-2 w-3 h-3 rounded-full transition-colors ${
-                  breakpoints.has(lineNum) ? 'bg-accent' : 'bg-border hover:bg-accent/50'
+                  breakpoints.has(lineNum) ? 'bg-red-500' : 'bg-border hover:bg-red-500/50'
                 }`}
                 title={`Toggle breakpoint at line ${lineNum}`}
               />

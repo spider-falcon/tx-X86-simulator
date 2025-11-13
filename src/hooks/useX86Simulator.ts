@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from 'react';
@@ -18,7 +19,7 @@ export const useX86Simulator = () => {
     const [files, setFiles] = useState<ProgramFile[]>(samplePrograms);
     const [activeFile, setActiveFile] = useState<string>(samplePrograms[0].name);
 
-    const [breakpoints, setBreakpoints] = useState<Set<number>>(new Set([5]));
+    const [breakpoints, setBreakpoints] = useState<Set<number>>(new Set());
     const [history, setHistory] = useState<string[]>([]);
     const [output, setOutput] = useState<string[]>([]);
     const [callStack, setCallStack] = useState<string[]>([]);
@@ -29,12 +30,42 @@ export const useX86Simulator = () => {
     const [isRunning, setIsRunning] = useState(false);
     const runnerRef = useRef<NodeJS.Timeout | null>(null);
 
+    // Refs to hold the latest state for the run loop
+    const stateRef = useRef({
+        registers,
+        flags,
+        memory,
+        breakpoints,
+        toast,
+        isRunning,
+    });
+
+    useEffect(() => {
+        stateRef.current = {
+            registers,
+            flags,
+            memory,
+            breakpoints,
+            toast,
+            isRunning,
+        };
+    }, [registers, flags, memory, breakpoints, toast, isRunning]);
+
     const activeCode = files.find(f => f.name === activeFile)?.code || '';
     const parsedInstructions = parseCode(activeCode);
     const lineMap = new Map(parsedInstructions.map((inst, i) => [CODE_START_ADDRESS + i, inst.line]));
     const currentLine = lineMap.get(registers.EIP) || 0;
 
+    const stopRunner = useCallback(() => {
+        if (runnerRef.current) {
+            clearInterval(runnerRef.current);
+            runnerRef.current = null;
+        }
+        setIsRunning(false);
+    }, []);
+
     const reset = useCallback(() => {
+        stopRunner();
         setRegisters(INITIAL_REGISTERS);
         setFlags(INITIAL_FLAGS);
         setMemory(new Uint8Array(MEMORY_SIZE));
@@ -43,71 +74,70 @@ export const useX86Simulator = () => {
         setCallStack([]);
         setCycles(0);
         setExecutionTime(0);
-        setIsRunning(false);
-        if (runnerRef.current) {
-            clearInterval(runnerRef.current);
-        }
         toast({ title: "Simulator Reset", description: "State cleared." });
-    }, [toast]);
+    }, [toast, stopRunner]);
 
-    const step = useCallback(() => {
-        const instructionIndex = registers.EIP - CODE_START_ADDRESS;
+    const step = useCallback((isRun = false) => {
+        const currentState = stateRef.current;
+        const instructionIndex = currentState.registers.EIP - CODE_START_ADDRESS;
+        
         if (instructionIndex < 0 || instructionIndex >= parsedInstructions.length) {
-            toast({ variant: "destructive", title: "Execution Halted", description: "Program counter is out of bounds." });
-            setIsRunning(false);
-            if (runnerRef.current) clearInterval(runnerRef.current);
-            return;
+            if (isRun) {
+                currentState.toast({ variant: "destructive", title: "Execution Halted", description: "End of program reached." });
+            } else {
+                currentState.toast({ variant: "destructive", title: "Execution Halted", description: "Program counter is out of bounds." });
+            }
+            stopRunner();
+            return false;
         }
 
         const instruction = parsedInstructions[instructionIndex];
-        const result = executor.step(instruction, registers, flags, memory);
+        const result = executor.step(instruction, currentState.registers, currentState.flags, currentState.memory);
 
         setRegisters(result.registers);
         setFlags(result.flags);
         setHistory(h => [result.historyLog, ...h].slice(0, 100));
         if (result.output) {
-            setOutput(o => [result.output!, ...o]);
+            setOutput(o => [result.output!, ...o].slice(0, 100));
         }
-        setCycles(c => c + 1); // Dummy cycle count
-
-    }, [registers, flags, memory, parsedInstructions, toast]);
+        setCycles(c => c + 1);
+        return true;
+    }, [parsedInstructions, stopRunner]);
 
     const run = useCallback(() => {
+        if(isRunning) {
+            stopRunner();
+            return;
+        }
+
         setIsRunning(true);
         const startTime = performance.now();
+
         runnerRef.current = setInterval(() => {
+            const { registers: currentRegisters, breakpoints: currentBreakpoints, toast: currentToast } = stateRef.current;
             setExecutionTime(performance.now() - startTime);
-            const instructionIndex = registers.EIP - CODE_START_ADDRESS;
-            const currentLine = lineMap.get(registers.EIP);
             
-            if (instructionIndex < 0 || instructionIndex >= parsedInstructions.length) {
-                setIsRunning(false);
-                if (runnerRef.current) clearInterval(runnerRef.current);
-                toast({ variant: "destructive", title: "Execution Halted", description: "End of program reached." });
+            const currentLineForBreakpoint = lineMap.get(currentRegisters.EIP);
+            
+            if (currentLineForBreakpoint && currentBreakpoints.has(currentLineForBreakpoint)) {
+                stopRunner();
+                currentToast({ title: "Execution Paused", description: `Breakpoint hit at line ${currentLineForBreakpoint}.` });
                 return;
             }
 
-            if (currentLine && breakpoints.has(currentLine)) {
-                setIsRunning(false);
-                if (runnerRef.current) clearInterval(runnerRef.current);
-                toast({ title: "Execution Paused", description: `Breakpoint hit at line ${currentLine}.` });
-                return;
+            if (!step(true)) {
+                stopRunner();
             }
-
-            step();
         }, 50); // Speed of execution
-    }, [registers.EIP, step, breakpoints, lineMap, toast]);
-
+    }, [isRunning, step, lineMap, stopRunner]);
+    
     useEffect(() => {
-        if (!isRunning && runnerRef.current) {
-            clearInterval(runnerRef.current);
-        }
         return () => {
-            if (runnerRef.current) {
+            if(runnerRef.current) {
                 clearInterval(runnerRef.current);
             }
-        };
-    }, [isRunning]);
+        }
+    }, []);
 
     const toggleBreakpoint = useCallback((line: number) => {
         setBreakpoints(prev => {
@@ -140,7 +170,7 @@ export const useX86Simulator = () => {
         callStack,
         cycles,
         executionTime,
-        step,
+        step: () => step(false),
         run,
         reset,
         isRunning,
