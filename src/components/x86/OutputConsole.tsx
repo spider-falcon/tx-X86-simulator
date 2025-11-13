@@ -10,11 +10,11 @@ interface OutputConsoleProps {
 }
 
 const OutputConsole: FC<OutputConsoleProps> = ({ output }) => {
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTo({ top: scrollAreaRef.current.scrollHeight });
+    if (viewportRef.current) {
+      viewportRef.current.scrollTo({ top: viewportRef.current.scrollHeight, behavior: 'smooth' });
     }
   }, [output]);
 
@@ -24,8 +24,8 @@ const OutputConsole: FC<OutputConsoleProps> = ({ output }) => {
         <CardTitle className="text-base">Console Output</CardTitle>
       </CardHeader>
       <CardContent className="flex-1 p-0">
-        <ScrollArea className="h-[100px] w-full" ref={scrollAreaRef}>
-            <div className="p-4 pt-0 font-code text-sm">
+        <ScrollArea className="h-[100px] w-full">
+            <div ref={viewportRef} className="p-4 pt-0 font-code text-sm">
             {output.length === 0 ? (
                 <p className="text-muted-foreground">Program output will appear here.</p>
             ) : (
