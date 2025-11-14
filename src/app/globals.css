@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
+  :root, .theme-light {
     --background: 30 56% 91%;
     --foreground: 25 25% 20%;
     --card: 30 56% 96%;
@@ -39,7 +39,7 @@
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
-  .dark {
+  .dark, .theme-default-dark {
     --background: 20 10% 10%;
     --foreground: 30 50% 90%;
     --card: 20 10% 15%;
@@ -72,6 +72,60 @@
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .theme-solarized-dark {
+    --background: 210 20% 12%; /* #1c2733 */
+    --foreground: 200 15% 85%; /* #d0dbe2 */
+    --card: 210 20% 15%; /* #212c38 */
+    --card-foreground: 200 15% 85%;
+    --popover: 210 20% 12%;
+    --popover-foreground: 200 15% 85%;
+    --primary: 45 95% 60%; /* #fbbd23 */
+    --primary-foreground: 210 20% 10%;
+    --secondary: 180 50% 45%; /* #3abfbf */
+    --secondary-foreground: 210 20% 10%;
+    --muted: 210 20% 20%; /* #293642 */
+    --muted-foreground: 200 15% 60%;
+    --accent: 340 85% 65%; /* #f472b6 */
+    --accent-foreground: 210 20% 10%;
+    --destructive: 0 70% 60%; /* #ef4444 */
+    --destructive-foreground: 0 0% 98%;
+    --border: 210 20% 25%; /* #344351 */
+    --input: 210 20% 25%;
+    --ring: 45 95% 60%;
+    --sidebar-background: 210 20% 10%;
+    --sidebar-foreground: 200 15% 80%;
+    --sidebar-accent: 210 20% 18%;
+    --sidebar-accent-foreground: 200 15% 90%;
+    --sidebar-border: 210 20% 20%;
+  }
+
+  .theme-vscode-dark {
+    --background: 220 13% 18%; /* #25252d */
+    --foreground: 220 10% 88%; /* #d9d9e2 */
+    --card: 220 13% 22%; /* #2d2d3a */
+    --card-foreground: 220 10% 88%;
+    --popover: 220 13% 18%;
+    --popover-foreground: 220 10% 88%;
+    --primary: 210 80% 60%; /* #5ca0f2 */
+    --primary-foreground: 220 13% 10%;
+    --secondary: 150 50% 55%; /* #4ec9b0 */
+    --secondary-foreground: 220 13% 10%;
+    --muted: 220 13% 25%; /* #343442 */
+    --muted-foreground: 220 10% 60%;
+    --accent: 300 60% 65%; /* #ce93d8 */
+    --accent-foreground: 220 13% 10%;
+    --destructive: 0 65% 60%; /* #e55353 */
+    --destructive-foreground: 0 0% 98%;
+    --border: 220 13% 30%; /* #3f3f50 */
+    --input: 220 13% 30%;
+    --ring: 210 80% 60%;
+    --sidebar-background: 220 13% 15%;
+    --sidebar-foreground: 220 10% 85%;
+    --sidebar-accent: 220 13% 22%;
+    --sidebar-accent-foreground: 220 10% 95%;
+    --sidebar-border: 220 13% 25%;
   }
 }
 

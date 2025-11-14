@@ -21,7 +21,7 @@ const ViewModeToggle: FC<{ viewMode: ViewMode, setViewMode: (mode: ViewMode) => 
         {(['hex', 'bin', 'txt'] as ViewMode[]).map(mode => (
             <Button
                 key={mode}
-                variant={viewMode === mode ? 'default' : 'outline'}
+                variant={viewMode === mode ? 'secondary' : 'outline'}
                 size="sm"
                 className="h-7 px-2 text-xs"
                 onClick={() => setViewMode(mode)}
@@ -56,9 +56,9 @@ const MemoryView: FC<{ memory: Memory, startAddress: number, numRows: number, eb
 
     for (let i = 0; i < numRows; i++) {
         const address = stackView ? startAddress - i * bytesPerRow : startAddress + i * bytesPerRow;
-        if (address < 0 || address + bytesPerRow > memory.length) continue;
+        if (address < 0 || address >= memory.length) continue;
         
-        const endAddress = address + bytesPerRow;
+        const endAddress = Math.min(address + bytesPerRow, memory.length);
         
         const bytes = Array.from(memory.slice(address, endAddress));
 
@@ -76,7 +76,7 @@ const MemoryView: FC<{ memory: Memory, startAddress: number, numRows: number, eb
         }
         
         rows.push(
-            <div key={address} className={`flex items-center gap-2 p-1 rounded font-mono ${highlightClass}`}>
+            <div key={address} className={cn('flex items-center gap-2 p-1 rounded font-mono', highlightClass)}>
                 <span className="text-muted-foreground w-16">{formatHex(address)}:</span>
                 <div className={`flex-1 grid gap-1 ${viewMode === 'bin' ? 'grid-cols-4' : 'grid-cols-8'}`}>
                     {bytes.map((byte, j) => (
@@ -102,11 +102,11 @@ const MemoryMatrixView: FC<{ memory: Memory }> = ({ memory }) => {
         if (byte === 0) return 'bg-muted/20';
         const intensity = byte / 255;
         if (intensity < 0.5) {
-            const opacity = Math.round((intensity * 2) * 80) + 10; // from 10 to 90
-            return `bg-secondary/${opacity}`;
+            const blueOpacity = Math.round((intensity * 2) * 80) + 10; // from 10 to 90
+            return `bg-secondary/${blueOpacity}`;
         } else {
-            const opacity = Math.round(((intensity - 0.5) * 2) * 80) + 10; // from 10 to 90
-            return `bg-accent/${opacity}`;
+            const redOpacity = Math.round(((intensity - 0.5) * 2) * 80) + 10; // from 10 to 90
+            return `bg-accent/${redOpacity}`;
         }
     }
 
@@ -138,7 +138,7 @@ const MemoryDisplay: FC<{ memory: Memory; registers: Registers; }> = ({ memory, 
 
   return (
     <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
-      <CardHeader>
+      <CardHeader className="py-3 px-4">
         <CardTitle className="text-base">Memory Viewer</CardTitle>
       </CardHeader>
       <CardContent className="flex-1 p-2 pt-0 flex flex-col min-h-0">

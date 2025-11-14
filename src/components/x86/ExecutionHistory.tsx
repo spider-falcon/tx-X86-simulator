@@ -24,7 +24,7 @@ const ExecutionHistory: FC<ExecutionHistoryProps> = ({ history }) => {
 
   return (
     <Card className="flex-1 flex flex-col min-h-[150px]">
-      <CardHeader>
+      <CardHeader className="py-3 px-4">
         <CardTitle className="text-base">Execution History</CardTitle>
       </CardHeader>
       <CardContent className="flex-1 p-0">

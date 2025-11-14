@@ -3,7 +3,7 @@
 import type { FC } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Play, StepForward, RotateCcw, Pause, Square } from 'lucide-react';
+import { Play, StepForward, RotateCcw, Square } from 'lucide-react';
 
 interface ControlPanelProps {
   onStep: () => void;
@@ -15,7 +15,7 @@ interface ControlPanelProps {
 const ControlPanel: FC<ControlPanelProps> = ({ onStep, onRun, onReset, isRunning }) => {
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="py-3 px-4">
         <CardTitle className="text-base">Execution Controls</CardTitle>
       </CardHeader>
       <CardContent className="flex items-center gap-2">

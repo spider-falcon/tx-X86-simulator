@@ -24,7 +24,7 @@ const OutputConsole: FC<OutputConsoleProps> = ({ output }) => {
 
   return (
     <Card className="flex flex-col">
-      <CardHeader>
+      <CardHeader className="py-3 px-4">
         <CardTitle className="text-base">Console Output</CardTitle>
       </CardHeader>
       <CardContent className="flex-1 p-0">

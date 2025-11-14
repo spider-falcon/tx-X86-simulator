@@ -32,7 +32,7 @@ const formatRegisterValue = (value: number, mode: ViewMode) => {
 }
 
 const ViewModeToggle: FC<{ viewMode: ViewMode, setViewMode: (mode: ViewMode) => void }> = ({ viewMode, setViewMode }) => (
-    <div className="absolute top-4 right-4 flex gap-1">
+    <div className="absolute top-2 right-2 flex gap-1">
         {(['hex', 'bin', 'dec'] as ViewMode[]).map(mode => (
             <Button
                 key={mode}
@@ -60,7 +60,7 @@ const RegisterDisplay: FC<RegisterDisplayProps> = ({ registers, flags }) => {
 
   return (
     <Card>
-      <CardHeader className="relative">
+      <CardHeader className="relative py-3 px-4">
         <CardTitle className="text-base">CPU Registers</CardTitle>
         <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} />
       </CardHeader>

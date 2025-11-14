@@ -11,7 +11,7 @@ interface CallStackProps {
 const CallStack: FC<CallStackProps> = ({ callStack }) => {
   return (
     <Card className="flex-1 flex flex-col min-h-[150px]">
-      <CardHeader>
+      <CardHeader className="py-3 px-4">
         <CardTitle className="text-base">Call Stack</CardTitle>
       </CardHeader>
       <CardContent className="flex-1 p-0">

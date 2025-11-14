@@ -14,6 +14,7 @@ import CallStack from "@/components/x86/CallStack";
 import ExecutionHistory from "@/components/x86/ExecutionHistory";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
+import { SidebarProvider, Sidebar, SidebarTrigger, SidebarContent, SidebarHeader, SidebarGroup, SidebarInset, SidebarFooter } from '@/components/ui/sidebar';
 
 export default function Home() {
   const simulator = useX86Simulator();
@@ -54,46 +55,45 @@ export default function Home() {
 
   return (
     <>
-      <main className="bg-background min-h-screen text-foreground font-body p-2 sm:p-4 flex flex-col gap-4">
+    <SidebarProvider>
+      <main className="bg-background min-h-screen text-foreground font-body flex flex-col">
         <Header cycles={simulator.cycles} executionTime={simulator.executionTime} />
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 min-h-0 overflow-hidden">
-          {/* Left Column */}
-          <div className="flex flex-col gap-4 min-h-0">
-            <FileTabs
-              files={simulator.files}
-              activeFile={simulator.activeFile}
-              setActiveFile={simulator.setActiveFile}
-              onAddFile={simulator.addFile}
-              onRenameFile={handleRenameClick}
-              onDeleteFile={handleDeleteClick}
-            />
-            <CodeEditor
-              code={simulator.files.find(f => f.name === simulator.activeFile)?.code || ''}
-              onCodeChange={(code) => simulator.updateCode(simulator.activeFile, code)}
-              breakpoints={simulator.breakpoints}
-              toggleBreakpoint={simulator.toggleBreakpoint}
-              currentLine={simulator.currentLine}
-            />
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-               <ControlPanel
-                  onStep={simulator.step}
-                  onRun={simulator.run}
-                  onReset={simulator.reset}
-                  isRunning={simulator.isRunning}
-               />
-               <OutputConsole output={simulator.output} />
-            </div>
-          </div>
-
-          {/* Right Column */}
-          <div className="flex flex-col gap-4 min-h-0 overflow-hidden">
-            <RegisterDisplay registers={simulator.registers} flags={simulator.flags} />
-            <MemoryDisplay memory={simulator.memory} registers={simulator.registers} instructions={simulator.instructions} />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 min-h-0">
-              <CallStack callStack={simulator.callStack} />
-              <ExecutionHistory history={simulator.history} />
-            </div>
-          </div>
+        <div className="flex-1 flex min-h-0 overflow-hidden">
+          <Sidebar side="right" variant="sidebar" collapsible="icon">
+            <SidebarContent className="p-2">
+                <RegisterDisplay registers={simulator.registers} flags={simulator.flags} />
+                <MemoryDisplay memory={simulator.memory} registers={simulator.registers} />
+                <CallStack callStack={simulator.callStack} />
+                <ExecutionHistory history={simulator.history} />
+            </SidebarContent>
+          </Sidebar>
+        
+          <SidebarInset className="p-2 sm:p-4 flex flex-col gap-4">
+             <FileTabs
+                files={simulator.files}
+                activeFile={simulator.activeFile}
+                setActiveFile={simulator.setActiveFile}
+                onAddFile={simulator.addFile}
+                onRenameFile={handleRenameClick}
+                onDeleteFile={handleDeleteClick}
+              />
+              <CodeEditor
+                code={simulator.files.find(f => f.name === simulator.activeFile)?.code || ''}
+                onCodeChange={(code) => simulator.updateCode(simulator.activeFile, code)}
+                breakpoints={simulator.breakpoints}
+                toggleBreakpoint={simulator.toggleBreakpoint}
+                currentLine={simulator.currentLine}
+              />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <ControlPanel
+                    onStep={simulator.step}
+                    onRun={simulator.run}
+                    onReset={simulator.reset}
+                    isRunning={simulator.isRunning}
+                />
+                <OutputConsole output={simulator.output} />
+              </div>
+          </SidebarInset>
         </div>
       </main>
       
@@ -133,6 +133,7 @@ export default function Home() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </SidebarProvider>
     </>
   );
 }
