@@ -3,7 +3,7 @@
 
 import type { FC } from 'react';
 import { useState } from 'react';
-import type { Memory, Registers, Instruction } from '@/lib/x86/types';
+import type { Memory, Registers } from '@/lib/x86/types';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -56,16 +56,19 @@ const MemoryView: FC<{ memory: Memory, startAddress: number, numRows: number, eb
 
     for (let i = 0; i < numRows; i++) {
         const address = stackView ? startAddress - i * bytesPerRow : startAddress + i * bytesPerRow;
-        if (address < 0 || address + bytesPerRow > memory.length) continue;
+        if (address < 0 || address >= memory.length) continue;
         
-        const bytes = Array.from(memory.slice(address, address + bytesPerRow));
+        const endAddress = address + bytesPerRow;
+        if (endAddress < 0 || endAddress > memory.length) continue;
+
+        const bytes = Array.from(memory.slice(address, endAddress));
 
         let highlightClass = '';
         if (stackView) {
-            if (address <= esp && esp < address + bytesPerRow) {
+            if (address <= esp && esp < endAddress) {
                 highlightClass = 'bg-blue-400/30'; 
             }
-             if (address <= ebp && ebp < address + bytesPerRow) {
+             if (address <= ebp && ebp < endAddress) {
                 highlightClass = 'bg-primary/30'; 
             }
         }
@@ -119,8 +122,8 @@ const MemoryMatrixView: FC<{ memory: Memory }> = ({ memory }) => {
     )
 }
 
-const MemoryDisplay: FC<MemoryDisplayProps> = ({ memory, registers }) => {
-  const stackTop = Math.min(STACK_ADDRESS_START + 8, registers.EBP + 16);
+const MemoryDisplay: FC<{ memory: Memory; registers: Registers; }> = ({ memory, registers }) => {
+  const stackTop = Math.min(STACK_ADDRESS_START, registers.EBP + 16);
   const [stackViewMode, setStackViewMode] = useState<ViewMode>('hex');
   const [dataViewMode, setDataViewMode] = useState<ViewMode>('hex');
   const [memoryViewMode, setMemoryViewMode] = useState<ViewMode>('hex');
@@ -167,5 +170,3 @@ const MemoryDisplay: FC<MemoryDisplayProps> = ({ memory, registers }) => {
 };
 
 export default MemoryDisplay;
-
-    
