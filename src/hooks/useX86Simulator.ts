@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import type { Registers, Flags, Memory, ProgramFile, Instruction } from '@/lib/x86/types';
+import type { Registers, Flags, Memory, ProgramFile } from '@/lib/x86/types';
 import { INITIAL_REGISTERS, INITIAL_FLAGS, MEMORY_SIZE, CODE_START_ADDRESS } from '@/lib/x86/constants';
 import { samplePrograms } from '@/lib/x86/sample-programs';
 import { parseCode } from '@/lib/x86/parser';
@@ -43,12 +43,10 @@ export const useX86Simulator = () => {
     }, [dataSegment]);
 
 
-    // Refs to hold the latest state for the run loop
     const stateRef = useRef({
         registers,
         flags,
         memory,
-        callStack,
         breakpoints,
         toast,
         isRunning,
@@ -62,7 +60,6 @@ export const useX86Simulator = () => {
             registers,
             flags,
             memory,
-            callStack,
             breakpoints,
             toast,
             isRunning,
@@ -70,7 +67,7 @@ export const useX86Simulator = () => {
             parsedInstructions,
             labels,
         };
-    }, [registers, flags, memory, callStack, breakpoints, toast, isRunning, lineMap, parsedInstructions, labels]);
+    }, [registers, flags, memory, breakpoints, toast, isRunning, lineMap, parsedInstructions, labels]);
 
 
     const stopRunner = useCallback(() => {
@@ -99,50 +96,53 @@ export const useX86Simulator = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeFile, parsedInstructions]);
 
-    const step = useCallback((isRun = false) => {
+    const executeInstruction = useCallback(() => {
         let shouldContinue = true;
 
-        setRegisters(currentRegisters => {
-            const instructionIndex = currentRegisters.EIP - CODE_START_ADDRESS;
-            
-            if (instructionIndex < 0 || instructionIndex >= parsedInstructions.length) {
-                if (!isRun || isRunning) {
-                    toast({ variant: "destructive", title: "Execution Halted", description: "End of program reached." });
+        const instructionIndex = stateRef.current.registers.EIP - CODE_START_ADDRESS;
+        
+        if (instructionIndex < 0 || instructionIndex >= stateRef.current.parsedInstructions.length) {
+            stopRunner();
+            if(!stateRef.current.isRunning){
+                toast({ variant: "destructive", title: "Execution Halted", description: "End of program reached." });
+            }
+            shouldContinue = false;
+            return { shouldContinue };
+        }
+
+        const instruction = stateRef.current.parsedInstructions[instructionIndex];
+        const result = executor.step(instruction, stateRef.current.registers, stateRef.current.flags, stateRef.current.memory, stateRef.current.labels, stopRunner);
+
+        if (result.memoryMutated) {
+            setMemory(new Uint8Array(result.memory));
+        }
+
+        setHistory(h => [result.historyLog, ...h].slice(0, 100));
+        setFlags(result.flags);
+        setRegisters(result.registers);
+        
+        if (result.output) {
+            setOutput(o => [result.output!, ...o].slice(0, 100));
+        }
+
+        if (result.callStackUpdate.length > 0) {
+            setCallStack(cs => {
+                if (result.callStackUpdate[0] === 'ret') {
+                    return cs.slice(1);
                 }
-                stopRunner();
-                shouldContinue = false;
-                return currentRegisters;
-            }
+                return [result.callStackUpdate[0], ...cs];
+            });
+        }
 
-            const instruction = parsedInstructions[instructionIndex];
-            const result = executor.step(instruction, currentRegisters, flags, memory, labels, stopRunner);
-
-            if (result.memoryMutated) {
-                setMemory(new Uint8Array(result.memory));
-            }
-    
-            setHistory(h => [result.historyLog, ...h].slice(0, 100));
-            setFlags(result.flags);
-            
-            if (result.output) {
-                setOutput(o => [result.output!, ...o].slice(0, 100));
-            }
-    
-            if (result.callStackUpdate.length > 0) {
-                 setCallStack(cs => {
-                    if (result.callStackUpdate[0] === 'ret') {
-                        return cs.slice(1);
-                    }
-                    return [result.callStackUpdate[0], ...cs];
-                });
-            }
-    
-            setCycles(c => c + 1);
-            return result.registers;
-        });
+        setCycles(c => c + 1);
 
         return { shouldContinue };
-    }, [flags, isRunning, labels, memory, parsedInstructions, stopRunner, toast]);
+    }, [stopRunner, toast]);
+
+
+    const step = useCallback(() => {
+        executeInstruction();
+    }, [executeInstruction]);
 
     const run = useCallback(() => {
         if(stateRef.current.isRunning) {
@@ -165,12 +165,12 @@ export const useX86Simulator = () => {
                 return;
             }
 
-            const { shouldContinue } = step(true);
+            const { shouldContinue } = executeInstruction();
             if (!shouldContinue) {
                 stopRunner();
             }
         }, 50); // Speed of execution
-    }, [step, stopRunner]);
+    }, [executeInstruction, stopRunner]);
     
     useEffect(() => {
         return () => {
@@ -183,7 +183,7 @@ export const useX86Simulator = () => {
     const toggleBreakpoint = useCallback((line: number) => {
         setBreakpoints(prev => {
             const newBreakpoints = new Set(prev);
-            if (newBreakpoints.has(line)) {
+if (newBreakpoints.has(line)) {
                 newBreakpoints.delete(line);
             } else {
                 newBreakpoints.add(line);
@@ -251,7 +251,7 @@ export const useX86Simulator = () => {
         callStack,
         cycles,
         executionTime,
-        step: () => step(false),
+        step,
         run,
         reset,
         isRunning,
