@@ -47,6 +47,12 @@ function getOperandValue(operand: string, registers: Registers, memory: Memory, 
     if (registers[upperOperand] !== undefined) {
         return { value: registers[upperOperand], size: 4 };
     }
+    
+    // Sub-register operands
+    if (upperOperand === 'AL') return { value: registers.EAX & 0xFF, size: 1 };
+    if (upperOperand === 'AH') return { value: (registers.EAX >> 8) & 0xFF, size: 1 };
+    if (upperOperand === 'AX') return { value: registers.EAX & 0xFFFF, size: 2 };
+
 
     // Label operand (returns address for data, jump target for code)
     if (labels.has(strippedOperand)) {
@@ -131,7 +137,6 @@ export function step(
   const newFlags = { ...flags };
   const newMemory = memory;
   let callStackUpdate: string | null = null;
-  const historyLog = `${formatHex(registers.EIP, 8)}: ${instruction.operation} ${instruction.operands.join(', ')}`;
   
   let output: string | null = null;
 
@@ -143,6 +148,8 @@ export function step(
   let result: number;
   let jump = false;
 
+  const historyLog = `${formatHex(registers.EIP, 8)}: ${instruction.operation} ${instruction.operands.join(', ')}`;
+  
   try {
     switch (instruction.operation.toLowerCase()) {
       case 'mov':
@@ -365,5 +372,3 @@ export function step(
 
   return { registers: newRegisters, flags: newFlags, memory: newMemory, historyLog, output, callStackUpdate };
 }
-
-    
