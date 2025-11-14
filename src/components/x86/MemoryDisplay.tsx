@@ -67,11 +67,11 @@ const MemoryView: FC<{ memory: Memory, startAddress: number, numRows: number, eb
             const espInRow = esp >= address && esp < endAddress;
             const ebpInRow = ebp >= address && ebp < endAddress;
             if (espInRow && ebpInRow && esp === ebp) {
-                highlightClass = 'bg-accent/40'; // Both at same spot
+                highlightClass = 'bg-accent/60'; // Both at same spot
             } else if (espInRow) {
-                highlightClass = 'bg-secondary/50'; 
+                highlightClass = 'bg-secondary/70'; 
             } else if (ebpInRow) {
-                highlightClass = 'bg-primary/30'; 
+                highlightClass = 'bg-primary/50'; 
             }
         }
         
@@ -151,7 +151,7 @@ const MemoryDisplay: FC<{ memory: Memory; registers: Registers; }> = ({ memory, 
           </TabsList>
           <div className="flex-1 mt-2 min-h-0">
             <ScrollArea className="h-full">
-                <div className="p-2">
+                <div className="p-2 bg-muted/20 rounded-md">
                     <TabsContent value="stack" className="m-0">
                         <ViewModeToggle viewMode={stackViewMode} setViewMode={setStackViewMode} />
                         <MemoryView memory={memory} startAddress={stackTop} numRows={32} ebp={registers.EBP} esp={registers.ESP} stackView={true} viewMode={stackViewMode} />
