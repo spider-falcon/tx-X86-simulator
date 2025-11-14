@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import type { Registers, Flags, Memory, ProgramFile } from '@/lib/x86/types';
+import type { Registers, Flags, Memory, ProgramFile, Instruction } from '@/lib/x86/types';
 import { INITIAL_REGISTERS, INITIAL_FLAGS, MEMORY_SIZE, CODE_START_ADDRESS } from '@/lib/x86/constants';
 import { samplePrograms } from '@/lib/x86/sample-programs';
 import { parseCode } from '@/lib/x86/parser';
@@ -30,11 +30,11 @@ export const useX86Simulator = () => {
     const [isRunning, setIsRunning] = useState(false);
     const runnerRef = useRef<NodeJS.Timeout | null>(null);
 
-    const activeCode = files.find(f => f.name === activeFile)?.code || '';
+    const activeCode = useMemo(() => files.find(f => f.name === activeFile)?.code || '', [files, activeFile]);
     
     const { instructions: parsedInstructions, labels, lineMap, dataSegment } = useMemo(() => parseCode(activeCode), [activeCode]);
 
-    const currentLine = lineMap.get(registers.EIP) || 0;
+    const currentLine = useMemo(() => lineMap.get(registers.EIP) || 0, [registers.EIP, lineMap]);
 
     const loadDataSegment = useCallback(() => {
         const newMemory = new Uint8Array(MEMORY_SIZE);
@@ -95,6 +95,11 @@ export const useX86Simulator = () => {
         setExecutionTime(0);
         toast({ title: "Simulator Reset", description: "State cleared." });
     }, [toast, stopRunner, loadDataSegment]);
+    
+    useEffect(() => {
+      reset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeFile, parsedInstructions]);
 
     const step = useCallback((isRun = false) => {
         const currentState = stateRef.current;
@@ -113,7 +118,12 @@ export const useX86Simulator = () => {
 
         setRegisters(result.registers);
         setFlags(result.flags);
-        setMemory(result.memory);
+        
+        // This is key: create a new Uint8Array to force React to re-render
+        if (result.memoryMutated) {
+            setMemory(new Uint8Array(result.memory));
+        }
+
         setHistory(h => [result.historyLog, ...h].slice(0, 100));
         
         if (result.output) {
@@ -139,12 +149,6 @@ export const useX86Simulator = () => {
             return;
         }
         
-        const { memory: newMemory, labels: newLabels } = loadDataSegment();
-        setMemory(newMemory);
-
-        stateRef.current.memory = newMemory;
-        stateRef.current.labels = newLabels;
-
         setIsRunning(true);
         const startTime = performance.now();
 
@@ -165,7 +169,7 @@ export const useX86Simulator = () => {
                 stopRunner();
             }
         }, 50); // Speed of execution
-    }, [step, stopRunner, loadDataSegment]);
+    }, [step, stopRunner]);
     
     useEffect(() => {
         return () => {
@@ -189,8 +193,7 @@ export const useX86Simulator = () => {
 
     const updateCode = useCallback((fileName: string, newCode: string) => {
         setFiles(currentFiles => updateFileCode(currentFiles, fileName, newCode));
-        reset();
-    }, [reset]);
+    }, []);
 
     const addFile = useCallback(() => {
         setFiles(currentFiles => {
@@ -198,21 +201,22 @@ export const useX86Simulator = () => {
             setActiveFile(newName);
             return newFiles;
         });
-        reset();
-    }, [reset]);
+    }, []);
 
     const renameFile = useCallback((oldName: string, newName: string) => {
         setFiles(currentFiles => {
             const { files: newFiles, success } = fmRenameFile(currentFiles, oldName, newName);
             if (success) {
-                setActiveFile(newName);
-                reset();
+                if (activeFile === oldName) {
+                    setActiveFile(newName);
+                }
+                toast({ title: "File Renamed", description: `"${oldName}" is now "${newName}".`});
             } else {
                 toast({ variant: "destructive", title: "Rename failed", description: `A file named "${newName}" already exists.` });
             }
             return newFiles;
         });
-    }, [toast, reset]);
+    }, [activeFile, toast]);
 
     const deleteFile = useCallback((fileName: string) => {
         setFiles(currentFiles => {
@@ -222,13 +226,11 @@ export const useX86Simulator = () => {
             } else {
                 const { files: withNewFile, newName } = fmAddFile([]);
                 setActiveFile(newName);
-                reset();
                 return withNewFile;
             }
-            reset();
             return newFiles;
         });
-    }, [activeFile, reset]);
+    }, [activeFile]);
 
     return {
         registers,
@@ -253,5 +255,6 @@ export const useX86Simulator = () => {
         reset,
         isRunning,
         currentLine,
+        instructions: parsedInstructions,
     };
 };

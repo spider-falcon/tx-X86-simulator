@@ -1,21 +1,22 @@
+
 import type { ProgramFile } from './types';
 
 export function addFile(files: ProgramFile[]): { files: ProgramFile[], newName: string } {
   let counter = 1;
-  let newName = `new_file_${counter}.asm`;
+  let newName = `new_file.asm`;
   
   while (files.some(f => f.name === newName)) {
     counter++;
     newName = `new_file_${counter}.asm`;
   }
   
-  const newFile: ProgramFile = { name: newName, code: `; New file: ${newName}` };
+  const newFile: ProgramFile = { name: newName, code: `; New file: ${newName}\nsection .text\n  global _start\n\n_start:\n  ; Your code here\n  mov eax, 1\n  mov ebx, 0\n  int 0x80` };
   return { files: [...files, newFile], newName };
 }
 
 export function renameFile(files: ProgramFile[], oldName: string, newName: string): { files: ProgramFile[], success: boolean } {
-  if (oldName === newName) {
-    return { files, success: true };
+  if (!newName.trim() || oldName === newName) {
+    return { files, success: oldName === newName };
   }
   if (files.some(f => f.name === newName)) {
     return { files, success: false };
