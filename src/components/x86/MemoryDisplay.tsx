@@ -62,24 +62,24 @@ const MemoryRow: FC<{ address: number, bytes: number[], viewMode: ViewMode, esp?
 
     const getHighlightClass = () => {
         if (espInRow && ebpInRow && esp === ebp) return 'bg-accent/60';
-        if (espInRow) return 'bg-primary/50';
-        if (ebpInRow) return 'bg-secondary/70';
+        if (espInRow) return 'bg-primary/30';
+        if (ebpInRow) return 'bg-secondary/50';
         return '';
     };
 
     return (
-        <div className={cn('flex items-center gap-2 p-1 rounded font-mono', getHighlightClass())}>
-            <span className="text-muted-foreground w-16 relative">
+        <div className={cn('flex items-center gap-2 p-1 rounded font-mono text-sm', getHighlightClass())}>
+            <div className="text-muted-foreground w-20 flex-shrink-0 relative text-xs">
                 {formatHex(address)}:
-                {espInRow && <span className="absolute -left-3 text-primary" title={`ESP: ${formatHex(esp!)}`}>→</span>}
-                {ebpInRow && <span className={cn("absolute text-secondary", espInRow ? '-left-6' : '-left-3')} title={`EBP: ${formatHex(ebp!)}`}>→</span>}
-            </span>
+                {ebpInRow && <span className={cn("absolute text-secondary-foreground font-bold", espInRow ? 'right-full mr-1' : 'right-full mr-1')} title={`EBP: ${formatHex(ebp!)}`}>EBP →</span>}
+                {espInRow && <span className="absolute right-full mr-1 text-primary font-bold" title={`ESP: ${formatHex(esp!)}`}>ESP →</span>}
+            </div>
             <div className={`flex-1 grid gap-1 ${viewMode === 'bin' ? 'grid-cols-4' : 'grid-cols-8'}`}>
                 {bytes.map((byte, j) => (
                     <MemoryByte key={j} viewMode={viewMode} byte={byte} />
                 ))}
             </div>
-             {viewMode !== 'txt' && (
+             {viewMode !== 'bin' && (
                 <div className="text-muted-foreground/80 w-16 text-xs font-mono">
                     {bytes.map(b => (b >= 32 && b <= 126) ? String.fromCharCode(b) : '.').join('')}
                 </div>
@@ -93,13 +93,23 @@ const MemoryView: FC<{ memory: Memory, startAddress: number, numRows: number, eb
     const rows = [];
     const bytesPerRow = viewMode === 'bin' ? 4 : 8;
 
+    // For stack view, we want to show addresses decreasing
+    // Let's center the view around the stack pointer a bit
+    const effectiveStartAddress = stackView ? Math.min(memory.length - bytesPerRow, startAddress + (numRows/2 * bytesPerRow)) : startAddress;
+
     for (let i = 0; i < numRows; i++) {
-        const rowAddress = stackView ? startAddress - i * bytesPerRow : startAddress + i * bytesPerRow;
+        const rowAddress = stackView ? effectiveStartAddress - i * bytesPerRow : effectiveStartAddress + i * bytesPerRow;
         
         if (rowAddress < 0 || rowAddress >= memory.length) continue;
         
         const endAddress = Math.min(rowAddress + bytesPerRow, memory.length);
-        const bytes = Array.from(memory.slice(rowAddress, endAddress));
+        const bytesSlice = memory.slice(rowAddress, endAddress);
+        const bytes = Array.from(bytesSlice);
+        
+        // Pad if we're at the end of memory
+        while (bytes.length < bytesPerRow) {
+            bytes.push(0);
+        }
 
         rows.push(
             <MemoryRow 
@@ -117,34 +127,29 @@ const MemoryView: FC<{ memory: Memory, startAddress: number, numRows: number, eb
 
 const MemoryMatrixView: FC<{ memory: Memory }> = ({ memory }) => {
     const matrixSize = 32; // 32x32 grid
-    const startAddress = 0;
     
     const getByteColor = (byte: number) => {
         if (byte === 0) return 'bg-muted/20';
         const intensity = byte / 255;
-        if (intensity < 0.5) {
-            // Blue scale for lower values
-            return `hsl(220, 100%, ${95 - (intensity * 2 * 30)}%)`;
-        } else {
-            // Red scale for higher values
-             return `hsl(0, 100%, ${95 - ((intensity - 0.5) * 2 * 30)}%)`;
-        }
+        // hsl(hue, saturation, lightness)
+        // Using hue to differentiate: 240 (blue) for low values, 0 (red) for high values
+        const hue = 240 - (intensity * 240);
+        return `hsl(${hue}, 80%, ${70 - (intensity * 40)}%)`;
     }
 
     return (
         <TooltipProvider>
             <div className="grid grid-cols-32 gap-px p-2 bg-border rounded-lg max-w-[520px] mx-auto">
                 {Array.from({ length: matrixSize * matrixSize }).map((_, index) => {
-                    const address = startAddress + index;
-                    const byte = memory[address] || 0;
+                    const byte = memory[index] || 0;
                     return (
-                        <Tooltip key={index} delayDuration={100}>
-                            <TooltipTrigger>
+                        <Tooltip key={index} delayDuration={50}>
+                            <TooltipTrigger asChild>
                                 <div style={{ backgroundColor: getByteColor(byte) }} className="w-full aspect-square rounded-sm" />
                             </TooltipTrigger>
                             <TooltipContent className="font-mono p-1 px-2 text-xs">
-                                <p>Addr: {formatHex(address)}</p>
-                                <p>Val: {formatHex(byte, 2)}</p>
+                                <p>Addr: {formatHex(index)}</p>
+                                <p>Val: {formatHex(byte, 2)} ({byte})</p>
                             </TooltipContent>
                         </Tooltip>
                     )
