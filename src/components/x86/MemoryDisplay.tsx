@@ -137,16 +137,13 @@ const MemoryDisplay: FC<{ memory: Memory; registers: Registers; }> = ({ memory, 
 
 
   return (
-    <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
-      <CardHeader className="py-3 px-4">
-        <CardTitle className="text-base">Memory Viewer</CardTitle>
-      </CardHeader>
-      <CardContent className="flex-1 p-2 pt-0 flex flex-col min-h-0">
+    <Card className="h-full border-0 rounded-none shadow-none flex-1 flex flex-col min-h-0 overflow-hidden">
+      <CardContent className="h-full flex-1 p-2 flex flex-col min-h-0">
         <Tabs defaultValue="stack" className="flex-1 flex flex-col min-h-0">
           <TabsList className="bg-card border w-full grid grid-cols-4">
             <TabsTrigger value="stack" className="flex-1">Stack</TabsTrigger>
             <TabsTrigger value="data" className="flex-1">.data</TabsTrigger>
-            <TabsTrigger value="memory" className="flex-1">Memory</TabsTrigger>
+            <TabsTrigger value="memory" className="flex-1">.text</TabsTrigger>
             <TabsTrigger value="matrix" className="flex-1">Matrix</TabsTrigger>
           </TabsList>
           <div className="flex-1 mt-2 min-h-0">
@@ -154,15 +151,15 @@ const MemoryDisplay: FC<{ memory: Memory; registers: Registers; }> = ({ memory, 
                 <div className="p-2 bg-muted/20 rounded-md">
                     <TabsContent value="stack" className="m-0">
                         <ViewModeToggle viewMode={stackViewMode} setViewMode={setStackViewMode} />
-                        <MemoryView memory={memory} startAddress={stackTop} numRows={32} ebp={registers.EBP} esp={registers.ESP} stackView={true} viewMode={stackViewMode} />
+                        <MemoryView memory={memory} startAddress={stackTop} numRows={64} ebp={registers.EBP} esp={registers.ESP} stackView={true} viewMode={stackViewMode} />
                     </TabsContent>
                     <TabsContent value="data" className="m-0">
                         <ViewModeToggle viewMode={dataViewMode} setViewMode={setDataViewMode} />
-                        <MemoryView memory={memory} startAddress={0} numRows={32} ebp={-1} esp={-1} viewMode={dataViewMode} />
+                        <MemoryView memory={memory} startAddress={0} numRows={64} ebp={-1} esp={-1} viewMode={dataViewMode} />
                     </TabsContent>
                     <TabsContent value="memory" className="m-0">
                         <ViewModeToggle viewMode={memoryViewMode} setViewMode={setMemoryViewMode} />
-                        <MemoryView memory={memory} startAddress={CODE_START_ADDRESS} numRows={32} ebp={-1} esp={-1} viewMode={memoryViewMode} />
+                        <MemoryView memory={memory} startAddress={CODE_START_ADDRESS} numRows={64} ebp={-1} esp={-1} viewMode={memoryViewMode} />
                     </TabsContent>
                     <TabsContent value="matrix" className="m-0">
                         <MemoryMatrixView memory={memory} />

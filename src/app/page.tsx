@@ -14,6 +14,8 @@ import CallStack from "@/components/x86/CallStack";
 import ExecutionHistory from "@/components/x86/ExecutionHistory";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
+import { Card } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 export default function Home() {
@@ -57,8 +59,8 @@ export default function Home() {
     <>
       <main className="bg-background min-h-screen text-foreground font-body flex flex-col">
         <Header cycles={simulator.cycles} executionTime={simulator.executionTime} />
-        <div className="flex-1 flex min-h-0 overflow-hidden">
-          {/* Main content */}
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          {/* Top section: Code Editor & Controls */}
           <div className="flex-1 flex flex-col p-2 sm:p-4 gap-4 overflow-auto">
             <FileTabs
                 files={simulator.files}
@@ -85,16 +87,32 @@ export default function Home() {
                 <OutputConsole output={simulator.output} />
               </div>
           </div>
-          {/* Right panel */}
-          <div className="w-[350px] lg:w-[400px] flex-shrink-0 border-l bg-card/20 min-h-0 overflow-hidden">
-            <ScrollArea className="h-full">
-              <div className="p-2 sm:p-4 flex flex-col gap-4">
-                <RegisterDisplay registers={simulator.registers} flags={simulator.flags} />
-                <MemoryDisplay memory={simulator.memory} registers={simulator.registers} />
-                <CallStack callStack={simulator.callStack} />
-                <ExecutionHistory history={simulator.history} />
+          {/* Bottom section: Debugging tools */}
+          <div className="h-[40vh] flex-shrink-0 border-t bg-card/20 min-h-0 overflow-hidden">
+            <Tabs defaultValue="memory" className="w-full h-full flex flex-col">
+              <div className="px-4 border-b">
+                <TabsList className="bg-transparent border-0 p-0 h-12">
+                  <TabsTrigger value="memory">Memory</TabsTrigger>
+                  <TabsTrigger value="registers">Registers</TabsTrigger>
+                  <TabsTrigger value="stack">Call Stack</TabsTrigger>
+                  <TabsTrigger value="history">History</TabsTrigger>
+                </TabsList>
               </div>
-            </ScrollArea>
+              <div className="flex-1 min-h-0">
+                  <TabsContent value="memory" className="h-full m-0">
+                    <MemoryDisplay memory={simulator.memory} registers={simulator.registers} />
+                  </TabsContent>
+                  <TabsContent value="registers" className="h-full m-0 p-2 sm:p-4">
+                      <RegisterDisplay registers={simulator.registers} flags={simulator.flags} />
+                  </TabsContent>
+                   <TabsContent value="stack" className="h-full m-0">
+                     <CallStack callStack={simulator.callStack} />
+                  </TabsContent>
+                   <TabsContent value="history" className="h-full m-0">
+                     <ExecutionHistory history={simulator.history} />
+                  </TabsContent>
+              </div>
+            </Tabs>
           </div>
         </div>
       </main>

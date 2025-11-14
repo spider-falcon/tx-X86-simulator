@@ -59,13 +59,13 @@ const RegisterDisplay: FC<RegisterDisplayProps> = ({ registers, flags }) => {
   const [viewMode, setViewMode] = useState<ViewMode>('hex');
 
   return (
-    <Card>
+    <Card className="h-full border-0 rounded-none shadow-none">
       <CardHeader className="relative py-3 px-4">
         <CardTitle className="text-base">CPU Registers</CardTitle>
         <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} />
       </CardHeader>
       <CardContent>
-        <ScrollArea className="max-h-[220px] -mx-4 px-4">
+        <ScrollArea className="h-full -mx-4 px-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
                 <div>
                 {GENERAL_PURPOSE_REGISTERS.map(reg => (
@@ -78,10 +78,10 @@ const RegisterDisplay: FC<RegisterDisplayProps> = ({ registers, flags }) => {
                 ))}
                 </div>
             </div>
+            <div className="mt-4">
+                <FlagsDisplay flags={flags} />
+            </div>
         </ScrollArea>
-        <div className="mt-2">
-            <FlagsDisplay flags={flags} />
-        </div>
       </CardContent>
     </Card>
   );

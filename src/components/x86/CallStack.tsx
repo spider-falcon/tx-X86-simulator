@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { FC } from 'react';
@@ -10,7 +11,7 @@ interface CallStackProps {
 
 const CallStack: FC<CallStackProps> = ({ callStack }) => {
   return (
-    <Card className="flex-1 flex flex-col min-h-[150px]">
+    <Card className="h-full border-0 rounded-none shadow-none flex flex-col min-h-[150px]">
       <CardHeader className="py-3 px-4">
         <CardTitle className="text-base">Call Stack</CardTitle>
       </CardHeader>

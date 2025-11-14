@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { FC } from 'react';
@@ -23,7 +24,7 @@ const ExecutionHistory: FC<ExecutionHistoryProps> = ({ history }) => {
   }, [history]);
 
   return (
-    <Card className="flex-1 flex flex-col min-h-[150px]">
+    <Card className="h-full border-0 rounded-none shadow-none flex flex-col min-h-[150px]">
       <CardHeader className="py-3 px-4">
         <CardTitle className="text-base">Execution History</CardTitle>
       </CardHeader>
