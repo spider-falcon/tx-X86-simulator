@@ -100,7 +100,7 @@ export default function Home() {
               </div>
               <div className="flex-1 min-h-0">
                   <TabsContent value="memory" className="h-full m-0">
-                    <MemoryDisplay memory={simulator.memory} registers={simulator.registers} />
+                    <MemoryDisplay simulator={simulator} />
                   </TabsContent>
                   <TabsContent value="registers" className="h-full m-0 p-2 sm:p-4">
                       <RegisterDisplay registers={simulator.registers} flags={simulator.flags} />

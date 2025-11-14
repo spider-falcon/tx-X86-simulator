@@ -12,9 +12,14 @@ import { CODE_START_ADDRESS } from '@/lib/x86/constants';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import type { useX86Simulator } from '@/hooks/useX86Simulator';
 
 
 type ViewMode = 'hex' | 'bin' | 'txt';
+
+interface SimulatorProps {
+    simulator: ReturnType<typeof useX86Simulator>;
+}
 
 const ViewModeToggle: FC<{ viewMode: ViewMode, setViewMode: (mode: ViewMode) => void }> = ({ viewMode, setViewMode }) => (
     <div className="flex gap-1 mb-2">
@@ -135,7 +140,7 @@ const MemoryMatrixView: FC<{ memory: Memory }> = ({ memory }) => {
                     return (
                         <Tooltip key={index} delayDuration={100}>
                             <TooltipTrigger>
-                                <div className={cn("w-full aspect-square rounded-sm", getByteColor(byte))} />
+                                <div style={{ backgroundColor: getByteColor(byte) }} className="w-full aspect-square rounded-sm" />
                             </TooltipTrigger>
                             <TooltipContent className="font-mono p-1 px-2 text-xs">
                                 <p>Addr: {formatHex(address)}</p>
@@ -149,7 +154,8 @@ const MemoryMatrixView: FC<{ memory: Memory }> = ({ memory }) => {
     )
 }
 
-const MemoryDisplay: FC<{ memory: Memory; registers: Registers; }> = ({ memory, registers }) => {
+const MemoryDisplay: FC<SimulatorProps> = ({ simulator }) => {
+  const { memory, registers } = simulator;
   const stackTop = registers.ESP;
   const [stackViewMode, setStackViewMode] = useState<ViewMode>('hex');
   const [dataViewMode, setDataViewMode] = useState<ViewMode>('hex');
