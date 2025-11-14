@@ -1,7 +1,7 @@
 import type {NextConfig} from 'next';
 
 const isProd = process.env.NODE_ENV === 'production';
-const repoName = 'your-repository-name'; // <-- IMPORTANT: Replace this with your GitHub repository name
+const repoName = 'tx-X86-simulator'; // <-- IMPORTANT: Replace this with your GitHub repository name
 
 const nextConfig: NextConfig = {
   /* config options here */
