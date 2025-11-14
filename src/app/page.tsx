@@ -88,7 +88,7 @@ export default function Home() {
               </div>
           </div>
           {/* Bottom section: Debugging tools */}
-          <div className="h-[40vh] flex-shrink-0 border-t bg-card/20 min-h-0 overflow-hidden">
+          <div className="h-[50vh] flex-shrink-0 border-t bg-card/20 min-h-0 overflow-hidden">
             <Tabs defaultValue="memory" className="w-full h-full flex flex-col">
               <div className="px-4 border-b">
                 <TabsList className="bg-transparent border-0 p-0 h-12">
