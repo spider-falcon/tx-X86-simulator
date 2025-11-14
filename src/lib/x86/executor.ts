@@ -97,21 +97,21 @@ export function step(
   flags: Flags,
   memory: Memory,
   labels: Map<string, number>,
-  stopRunner: (reason: string) => void
+  haltExecution: (reason: string, isError?: boolean) => void
 ): {
   registers: Registers,
   flags: Flags,
   memory: Memory,
   historyLog: string,
   output: string | null,
-  callStackUpdate: string[]
+  callStackUpdate: string | null
 } | null {
   const newRegisters = { ...registers };
   const newFlags = { ...flags };
   const newMemory = memory;
-  let callStackUpdate: string[] = [];
+  let callStackUpdate: string | null = null;
 
-  let historyLog = `${formatHex(registers.EIP, 8)}: ${instruction.operation} ${instruction.operands.join(', ')}`;
+  const historyLog = `${formatHex(registers.EIP, 8)}: ${instruction.operation} ${instruction.operands.join(', ')}`;
   let output: string | null = null;
 
   const op1 = instruction.operands[0];
@@ -184,7 +184,7 @@ export function step(
               } else {
                 newRegisters.EIP = targetAddress;
                 jump = true;
-                callStackUpdate = [`call ${op1}`];
+                callStackUpdate = `call ${op1} -> ${formatHex(targetAddress)}`;
               }
           } else {
               throw new Error(`Label or address for call not found: ${op1}`);
@@ -193,7 +193,7 @@ export function step(
       case 'ret':
           newRegisters.EIP = popStack(newRegisters, newMemory);
           jump = true;
-          callStackUpdate = ['ret'];
+          callStackUpdate = 'ret';
           break;
       case 'cmp':
           val1 = getOperandValue(op1, newRegisters, newMemory, labels);
@@ -287,8 +287,8 @@ export function step(
           const interruptNum = getOperandValue(op1, newRegisters, newMemory, labels);
           if (interruptNum === 0x80) { // Linux syscall
               if (newRegisters.EAX === 1) { // sys_exit
-                  output = `Program exited with code ${newRegisters.EBX}.`;
-                  stopRunner(output);
+                  const exitCode = newRegisters.EBX;
+                  haltExecution(`Program exited with code ${exitCode}.`, false);
                   return null;
               } else if (newRegisters.EAX === 4) { // sys_write
                   const address = newRegisters.ECX;
@@ -311,10 +311,9 @@ export function step(
           throw new Error(`Unknown instruction '${instruction.operation}'`);
     }
   } catch (e: any) {
-    stopRunner(e.message);
-    historyLog += ` (Error: ${e.message})`;
+    haltExecution(e.message);
     // We do not advance EIP on an error to allow inspection
-    return { registers: newRegisters, flags: newFlags, memory: newMemory, historyLog, output, callStackUpdate };
+    return { registers: newRegisters, flags: newFlags, memory: newMemory, historyLog: `${historyLog} (Error: ${e.message})`, output, callStackUpdate };
   }
   
   if(!jump) {
