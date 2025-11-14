@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, useLayoutEffect } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import { themes } from '@/lib/themes';
 
 type Theme = (typeof themes)[number]['name'];
@@ -29,20 +29,19 @@ export function ThemeProvider({
   storageKey = 'x86-simulator-ui-theme',
   ...props
 }: ThemeProviderProps) {
-  const [theme, setTheme] = useState<Theme>(defaultTheme);
-
-  // This effect runs only on the client, after the initial render.
-  useLayoutEffect(() => {
-    const storedTheme = localStorage.getItem(storageKey) as Theme | null;
-    if (storedTheme && themes.some(t => t.name === storedTheme)) {
-      setTheme(storedTheme);
+  const [theme, setTheme] = useState<Theme>(() => {
+    if (typeof window === 'undefined') {
+      return defaultTheme;
     }
-  }, [storageKey]);
+    return (localStorage.getItem(storageKey) as Theme) || defaultTheme
+  });
 
   useEffect(() => {
     const root = window.document.documentElement;
+    
     root.classList.remove(...themes.map(t => t.name));
     root.classList.add(theme);
+
     localStorage.setItem(storageKey, theme);
   }, [theme, storageKey]);
 
