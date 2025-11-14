@@ -88,6 +88,11 @@ export function parseCode(code: string): {
             });
         }
       } else if (currentSection === '.text') {
+        // Ignore assembler directives like 'global'
+        if (cleanedLine.toLowerCase().startsWith('global')) {
+            return;
+        }
+
         // Handle labels
         if (cleanedLine.endsWith(':')) {
           const label = cleanedLine.slice(0, -1);
@@ -136,8 +141,9 @@ export function parseCode(code: string): {
   // Resolve EQU directives at the end
   equsToResolve.forEach(({label, value}) => {
     // Very specific handler for `len equ $ - msg`
-    if (value.trim() === '$ - msg') {
-        const msgAddress = labels.get('msg');
+    if (value.includes('$ -')) {
+        const msgLabel = value.split('-')[1].trim();
+        const msgAddress = labels.get(msgLabel);
         if (msgAddress !== undefined) {
           const dollarValue = dataPointer; // `$` is the current address
           labels.set(label, dollarValue - msgAddress);

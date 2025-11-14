@@ -38,6 +38,7 @@ _start:
 loop_start:
   inc eax          ; Increment EAX
   dec ecx          ; Decrement loop counter
+  cmp ecx, 0
   jnz loop_start   ; Jump if not zero
   
 exit:
@@ -116,6 +117,7 @@ fib_loop:
     jg fib_loop
 
 fib_end:
+    mov edx, eax
     ret
 `
   },
