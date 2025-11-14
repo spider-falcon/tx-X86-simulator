@@ -296,7 +296,8 @@ export function step(
   } catch (e: any) {
     stopRunner(e.message);
     historyLog += ` (Error: ${e.message})`;
-    return null;
+    // We do not advance EIP on an error to allow inspection
+    return { registers: newRegisters, flags: newFlags, memory: newMemory, historyLog, output, callStackUpdate };
   }
   
   if(!jump) {

@@ -84,7 +84,7 @@ export const useX86Simulator = () => {
         if (message) {
             toastMessageQueue.current = message;
         }
-    }, []);
+    }, [toast]);
 
     const reset = useCallback(() => {
         stopRunner();
