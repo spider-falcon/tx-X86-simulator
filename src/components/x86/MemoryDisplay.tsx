@@ -56,19 +56,21 @@ const MemoryView: FC<{ memory: Memory, startAddress: number, numRows: number, eb
 
     for (let i = 0; i < numRows; i++) {
         const address = stackView ? startAddress - i * bytesPerRow : startAddress + i * bytesPerRow;
-        if (address < 0 || address >= memory.length) continue;
+        if (address < 0 || address + bytesPerRow > memory.length) continue;
         
         const endAddress = address + bytesPerRow;
-        if (endAddress < 0 || endAddress > memory.length) continue;
-
+        
         const bytes = Array.from(memory.slice(address, endAddress));
 
         let highlightClass = '';
         if (stackView) {
-            if (address <= esp && esp < endAddress) {
-                highlightClass = 'bg-blue-400/30'; 
-            }
-             if (address <= ebp && ebp < endAddress) {
+            const espInRow = esp >= address && esp < endAddress;
+            const ebpInRow = ebp >= address && ebp < endAddress;
+            if (espInRow && ebpInRow && esp === ebp) {
+                highlightClass = 'bg-accent/40'; // Both at same spot
+            } else if (espInRow) {
+                highlightClass = 'bg-secondary/50'; 
+            } else if (ebpInRow) {
                 highlightClass = 'bg-primary/30'; 
             }
         }
@@ -98,9 +100,14 @@ const MemoryMatrixView: FC<{ memory: Memory }> = ({ memory }) => {
     
     const getByteColor = (byte: number) => {
         if (byte === 0) return 'bg-muted/20';
-        if (byte === 255) return 'bg-red-400/50';
-        const intensity = (byte / 255);
-        return `bg-primary/` + Math.round(intensity * 100);
+        const intensity = byte / 255;
+        if (intensity < 0.5) {
+            const opacity = Math.round((intensity * 2) * 80) + 10; // from 10 to 90
+            return `bg-secondary/${opacity}`;
+        } else {
+            const opacity = Math.round(((intensity - 0.5) * 2) * 80) + 10; // from 10 to 90
+            return `bg-accent/${opacity}`;
+        }
     }
 
     return (
