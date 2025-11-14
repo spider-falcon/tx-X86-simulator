@@ -1,8 +1,13 @@
 import type {NextConfig} from 'next';
 
+const isProd = process.env.NODE_ENV === 'production';
+const repoName = 'your-repository-name'; // <-- IMPORTANT: Replace this with your GitHub repository name
+
 const nextConfig: NextConfig = {
   /* config options here */
   output: 'export',
+  assetPrefix: isProd ? `/${repoName}/` : '',
+  basePath: isProd ? `/${repoName}` : '',
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -25,7 +30,8 @@ const nextConfig: NextConfig = {
         pathname: '/**',
       },
       {
-        protocol: 'https',
+        protocol: 'https'
+        ,
         hostname: 'picsum.photos',
         port: '',
         pathname: '/**',
