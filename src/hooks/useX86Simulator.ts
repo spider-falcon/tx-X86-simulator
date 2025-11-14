@@ -40,8 +40,7 @@ export const useX86Simulator = () => {
         const newMemory = new Uint8Array(MEMORY_SIZE);
         newMemory.set(dataSegment, 0); 
         setMemory(newMemory);
-        return { memory: newMemory, labels };
-    }, [dataSegment, labels]);
+    }, [dataSegment]);
 
 
     // Refs to hold the latest state for the run loop
@@ -86,8 +85,7 @@ export const useX86Simulator = () => {
         stopRunner();
         setRegisters(INITIAL_REGISTERS);
         setFlags(INITIAL_FLAGS);
-        const { memory: newMemory } = loadDataSegment();
-        setMemory(newMemory);
+        loadDataSegment();
         setHistory([]);
         setOutput([]);
         setCallStack([]);
@@ -102,46 +100,49 @@ export const useX86Simulator = () => {
     }, [activeFile, parsedInstructions]);
 
     const step = useCallback((isRun = false) => {
-        const currentState = stateRef.current;
-        const instructionIndex = currentState.registers.EIP - CODE_START_ADDRESS;
-        
-        if (instructionIndex < 0 || instructionIndex >= currentState.parsedInstructions.length) {
-            if (!isRun || currentState.isRunning) {
-                currentState.toast({ variant: "destructive", title: "Execution Halted", description: "End of program reached." });
-            }
-            stopRunner();
-            return { shouldContinue: false };
-        }
+        let shouldContinue = true;
 
-        const instruction = currentState.parsedInstructions[instructionIndex];
-        const result = executor.step(instruction, currentState.registers, currentState.flags, currentState.memory, currentState.labels, stopRunner);
-
-        setRegisters(result.registers);
-        setFlags(result.flags);
-        
-        // This is key: create a new Uint8Array to force React to re-render
-        if (result.memoryMutated) {
-            setMemory(new Uint8Array(result.memory));
-        }
-
-        setHistory(h => [result.historyLog, ...h].slice(0, 100));
-        
-        if (result.output) {
-            setOutput(o => [result.output!, ...o].slice(0, 100));
-        }
-
-        if (result.callStackUpdate.length > 0) {
-             setCallStack(cs => {
-                if (result.callStackUpdate[0] === 'ret') {
-                    return cs.slice(1);
+        setRegisters(currentRegisters => {
+            const instructionIndex = currentRegisters.EIP - CODE_START_ADDRESS;
+            
+            if (instructionIndex < 0 || instructionIndex >= parsedInstructions.length) {
+                if (!isRun || isRunning) {
+                    toast({ variant: "destructive", title: "Execution Halted", description: "End of program reached." });
                 }
-                return [result.callStackUpdate[0], ...cs];
-            });
-        }
+                stopRunner();
+                shouldContinue = false;
+                return currentRegisters;
+            }
 
-        setCycles(c => c + 1);
-        return { shouldContinue: true };
-    }, [stopRunner]);
+            const instruction = parsedInstructions[instructionIndex];
+            const result = executor.step(instruction, currentRegisters, flags, memory, labels, stopRunner);
+
+            if (result.memoryMutated) {
+                setMemory(new Uint8Array(result.memory));
+            }
+    
+            setHistory(h => [result.historyLog, ...h].slice(0, 100));
+            setFlags(result.flags);
+            
+            if (result.output) {
+                setOutput(o => [result.output!, ...o].slice(0, 100));
+            }
+    
+            if (result.callStackUpdate.length > 0) {
+                 setCallStack(cs => {
+                    if (result.callStackUpdate[0] === 'ret') {
+                        return cs.slice(1);
+                    }
+                    return [result.callStackUpdate[0], ...cs];
+                });
+            }
+    
+            setCycles(c => c + 1);
+            return result.registers;
+        });
+
+        return { shouldContinue };
+    }, [flags, isRunning, labels, memory, parsedInstructions, stopRunner, toast]);
 
     const run = useCallback(() => {
         if(stateRef.current.isRunning) {
