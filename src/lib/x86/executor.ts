@@ -8,6 +8,12 @@ import { updateFlags } from './registerManager';
 function getOperandValue(operand: string, registers: Registers, memory: Memory, labels: Map<string, number>): number {
     if (!operand) return 0;
     
+    // Handle dword ptr [address] syntax
+    const dwordMatch = operand.match(/dword ptr \[(.+)\]/i) || operand.match(/dword \[(.+)\]/i);
+    if (dwordMatch) {
+        operand = `[${dwordMatch[1]}]`;
+    }
+
     const upperOperand = operand.toUpperCase();
 
     // Memory operands like [eax], [eax+4], [my_var]
@@ -53,6 +59,12 @@ function getOperandValue(operand: string, registers: Registers, memory: Memory, 
 
 
 function setOperandValue(operand: string, value: number, registers: Registers, memory: Memory, labels: Map<string, number>): void {
+    
+    const dwordMatch = operand.match(/dword ptr \[(.+)\]/i) || operand.match(/dword \[(.+)\]/i);
+    if (dwordMatch) {
+        operand = `[${dwordMatch[1]}]`;
+    }
+    
     const upperOperand = operand.toUpperCase();
 
     if (operand.startsWith('[') && operand.endsWith(']')) {
@@ -166,9 +178,14 @@ export function step(
           pushStack(newRegisters.EIP + 1, newRegisters, newMemory);
           const targetAddress = getOperandValue(op1, newRegisters, newMemory, labels);
           if (targetAddress !== undefined) {
-              newRegisters.EIP = targetAddress;
-              jump = true;
-              callStackUpdate = [`call ${op1}`];
+              if (targetAddress === 0) {
+                 // Trying to call an external function like printf
+                 output = `(Note: External call to '${op1}' skipped in simulation.)`;
+              } else {
+                newRegisters.EIP = targetAddress;
+                jump = true;
+                callStackUpdate = [`call ${op1}`];
+              }
           } else {
               throw new Error(`Label or address for call not found: ${op1}`);
           }

@@ -39,7 +39,7 @@ export function parseCode(code: string): {
           return;
       }
       
-      if (currentSection === '.data') {
+      if (currentSection === '.data' || currentSection === '.bss') {
         const parts = cleanedLine.match(/(?:[^\s"']+|"[^"]*'[^']*'|'[^']+'|"[^"]+")+/g) || [];
         if (parts.length < 2) return;
 
@@ -53,43 +53,51 @@ export function parseCode(code: string): {
         }
 
         labels.set(label, dataPointer);
+        
+        if (currentSection === '.data') {
+            if (directive === 'db') {
+              const stringLiterals = value.match(/'[^']*'|"[^"]*"/g) || [];
+              const numericValues = value.replace(/'[^']*'|"[^"]*"/g, '').split(',').filter(v => v.trim());
+              
+              if (stringLiterals) {
+                stringLiterals.forEach(s => {
+                    const str = s.slice(1, -1);
+                    for (let i = 0; i < str.length; i++) {
+                        dataSegment[dataPointer++] = str.charCodeAt(i);
+                    }
+                     // Handle comma separated strings by adding a null terminator if needed
+                    if (value.includes(",")) {
+                        dataSegment[dataPointer++] = 0;
+                    }
+                });
+              }
 
-        if (directive === 'db') {
-          const stringLiterals = value.match(/'[^']*'|"[^"]*"/g) || [];
-          const numericValues = value.replace(/'[^']*'|"[^"]*"/g, '').split(',').filter(v => v.trim());
-          
-          if (stringLiterals) {
-            stringLiterals.forEach(s => {
-                const str = s.slice(1, -1);
-                for (let i = 0; i < str.length; i++) {
-                    dataSegment[dataPointer++] = str.charCodeAt(i);
-                }
-                 // Handle comma separated strings
-                if (value.includes(",")) {
-                    dataSegment[dataPointer++] = 0;
-                }
-            });
-          }
-
-          if (numericValues) {
-            numericValues.forEach(v => {
-                const num = parseInt(v.trim());
-                if (!isNaN(num)) {
-                    dataSegment[dataPointer++] = num;
-                }
-            });
-          }
-        } else if (directive === 'dd') {
-            const values = value.split(',').map(v => parseInt(v.trim())).filter(v => !isNaN(v));
-            values.forEach(v => {
-                const view = new DataView(dataSegment.buffer);
-                view.setUint32(dataPointer, v, true);
-                dataPointer += 4;
-            });
+              if (numericValues) {
+                numericValues.forEach(v => {
+                    const num = parseInt(v.trim());
+                    if (!isNaN(num)) {
+                        dataSegment[dataPointer++] = num;
+                    }
+                });
+              }
+            } else if (directive === 'dd') {
+                const values = value.split(',').map(v => parseInt(v.trim())).filter(v => !isNaN(v));
+                values.forEach(v => {
+                    const view = new DataView(dataSegment.buffer);
+                    view.setUint32(dataPointer, v, true);
+                    dataPointer += 4;
+                });
+            }
+        } else { // .bss section
+            if (directive === 'resd') {
+                dataPointer += parseInt(value) * 4;
+            } else if (directive === 'resb') {
+                dataPointer += parseInt(value);
+            }
         }
       } else if (currentSection === '.text') {
-        // Ignore assembler directives like 'global'
-        if (cleanedLine.toLowerCase().startsWith('global')) {
+        // Ignore assembler directives like 'global' or 'extern'
+        if (cleanedLine.toLowerCase().startsWith('global') || cleanedLine.toLowerCase().startsWith('extern')) {
             return;
         }
 
