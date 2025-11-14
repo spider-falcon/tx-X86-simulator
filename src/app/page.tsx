@@ -14,7 +14,7 @@ import CallStack from "@/components/x86/CallStack";
 import ExecutionHistory from "@/components/x86/ExecutionHistory";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
-import { SidebarProvider, Sidebar, SidebarTrigger, SidebarContent, SidebarHeader, SidebarGroup, SidebarInset, SidebarFooter } from '@/components/ui/sidebar';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 export default function Home() {
   const simulator = useX86Simulator();
@@ -55,21 +55,12 @@ export default function Home() {
 
   return (
     <>
-    <SidebarProvider>
       <main className="bg-background min-h-screen text-foreground font-body flex flex-col">
         <Header cycles={simulator.cycles} executionTime={simulator.executionTime} />
         <div className="flex-1 flex min-h-0 overflow-hidden">
-          <Sidebar side="right" variant="sidebar" collapsible="icon">
-            <SidebarContent className="p-2">
-                <RegisterDisplay registers={simulator.registers} flags={simulator.flags} />
-                <MemoryDisplay memory={simulator.memory} registers={simulator.registers} />
-                <CallStack callStack={simulator.callStack} />
-                <ExecutionHistory history={simulator.history} />
-            </SidebarContent>
-          </Sidebar>
-        
-          <SidebarInset className="p-2 sm:p-4 flex flex-col gap-4">
-             <FileTabs
+          {/* Main content */}
+          <div className="flex-1 flex flex-col p-2 sm:p-4 gap-4 overflow-auto">
+            <FileTabs
                 files={simulator.files}
                 activeFile={simulator.activeFile}
                 setActiveFile={simulator.setActiveFile}
@@ -93,7 +84,18 @@ export default function Home() {
                 />
                 <OutputConsole output={simulator.output} />
               </div>
-          </SidebarInset>
+          </div>
+          {/* Right panel */}
+          <div className="w-[350px] lg:w-[400px] flex-shrink-0 border-l bg-card/20 min-h-0 overflow-hidden">
+            <ScrollArea className="h-full">
+              <div className="p-2 sm:p-4 flex flex-col gap-4">
+                <RegisterDisplay registers={simulator.registers} flags={simulator.flags} />
+                <MemoryDisplay memory={simulator.memory} registers={simulator.registers} />
+                <CallStack callStack={simulator.callStack} />
+                <ExecutionHistory history={simulator.history} />
+              </div>
+            </ScrollArea>
+          </div>
         </div>
       </main>
       
@@ -133,7 +135,6 @@ export default function Home() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      </SidebarProvider>
     </>
   );
 }

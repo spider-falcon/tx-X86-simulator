@@ -2,7 +2,6 @@
 import type { FC } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Cpu, Timer, Palette } from 'lucide-react';
-import { SidebarTrigger } from '@/components/ui/sidebar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useTheme } from './ThemeProvider';
 import { themes } from '@/lib/themes';
@@ -47,7 +46,6 @@ const Header: FC<HeaderProps> = ({ cycles, executionTime }) => {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-          <SidebarTrigger className="flex"/>
         </div>
       </CardContent>
     </Card>
