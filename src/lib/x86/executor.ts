@@ -35,7 +35,7 @@ function getOperandValue(operand: string, registers: Registers, memory: Memory, 
         return registers[upperOperand];
     }
 
-    // Label operand (returns address)
+    // Label operand (returns address for data, jump target for code)
     if (labels.has(operand)) {
         return labels.get(operand)!;
     }
@@ -96,7 +96,7 @@ export function step(
 } | null {
   const newRegisters = { ...registers };
   const newFlags = { ...flags };
-  const newMemory = new Uint8Array(memory.buffer); // Create a mutable copy for this step
+  const newMemory = memory;
   let callStackUpdate: string[] = [];
 
   let historyLog = `${formatHex(registers.EIP, 8)}: ${instruction.operation} ${instruction.operands.join(', ')}`;

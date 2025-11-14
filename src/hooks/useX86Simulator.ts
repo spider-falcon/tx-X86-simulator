@@ -21,20 +21,17 @@ type SimulatorState = {
     executionTime: number;
 };
 
-const getInitialState = (dataSegment: Uint8Array): SimulatorState => {
-    const initialMemory = new Uint8Array(MEMORY_SIZE);
-    initialMemory.set(dataSegment, 0);
-    return {
-        registers: { ...INITIAL_REGISTERS },
-        flags: { ...INITIAL_FLAGS },
-        memory: initialMemory,
-        history: [],
-        output: [],
-        callStack: [],
-        cycles: 0,
-        executionTime: 0,
-    };
-};
+const getInitialState = (): SimulatorState => ({
+    registers: { ...INITIAL_REGISTERS },
+    flags: { ...INITIAL_FLAGS },
+    memory: new Uint8Array(MEMORY_SIZE),
+    history: [],
+    output: [],
+    callStack: [],
+    cycles: 0,
+    executionTime: 0,
+});
+
 
 export const useX86Simulator = () => {
     const { toast } = useToast();
@@ -45,46 +42,51 @@ export const useX86Simulator = () => {
     const activeCode = useMemo(() => files.find(f => f.name === activeFile)?.code || '', [files, activeFile]);
     const { instructions: parsedInstructions, labels, lineMap, dataSegment } = useMemo(() => parseCode(activeCode), [activeCode]);
 
-    const [simState, setSimState] = useState<SimulatorState>(() => getInitialState(dataSegment));
+    const [simState, setSimState] = useState<SimulatorState>(getInitialState);
     const [breakpoints, setBreakpoints] = useState<Set<number>>(new Set());
     const [isRunning, setIsRunning] = useState(false);
     
     const runnerRef = useRef<number | null>(null);
     const executionStartTimeRef = useRef<number>(0);
+    const stopReasonRef = useRef<{ title: string; description: string; variant?: 'default' | 'destructive' | null } | null>(null);
 
-    const stopRunner = useCallback((message?: {title: string, description: string, variant?: 'default' | 'destructive' | null}) => {
+
+    const stopRunner = useCallback(() => {
         setIsRunning(false);
         if (runnerRef.current) {
             cancelAnimationFrame(runnerRef.current);
             runnerRef.current = null;
         }
-        if (message) {
-            toast({ variant: message.variant, title: message.title, description: message.description });
-        }
-    }, [toast]);
+    }, []);
     
     const executeSingleInstruction = useCallback((currentState: SimulatorState): SimulatorState | null => {
         const instructionIndex = currentState.registers.EIP - CODE_START_ADDRESS;
         
         if (instructionIndex < 0 || instructionIndex >= parsedInstructions.length) {
-            stopRunner({ title: "Execution Halted", description: "End of program reached.", variant: "default" });
+            stopReasonRef.current = { title: "Execution Halted", description: "End of program reached.", variant: "default" };
+            stopRunner();
             return null;
         }
         
         const instruction = parsedInstructions[instructionIndex];
+        const stop = (reason: string) => {
+            stopReasonRef.current = {title: "Execution Halted", description: reason, variant: "destructive"};
+            stopRunner();
+        }
+
         const result = executor.step(
             instruction, 
             currentState.registers, 
             currentState.flags, 
             currentState.memory, 
             labels, 
-            (msg) => stopRunner({title: "Execution Halted", description: msg, variant: "destructive"})
+            stop
         );
 
         if (!result) return null; // Execution was halted by the executor
         
         const newHistory = [result.historyLog, ...currentState.history].slice(0, 100);
-        const newOutput = result.output ? [result.output, ...currentState.output].slice(0, 100) : currentState.output;
+        const newOutput = result.output ? [...currentState.output, result.output].slice(-100) : currentState.output;
         
         let newCallStack = currentState.callStack;
         if (result.callStackUpdate.length > 0) {
@@ -99,7 +101,7 @@ export const useX86Simulator = () => {
             ...currentState,
             registers: result.registers,
             flags: result.flags,
-            memory: result.memory, // Executor now returns the memory object
+            memory: result.memory,
             history: newHistory,
             output: newOutput,
             callStack: newCallStack,
@@ -109,18 +111,28 @@ export const useX86Simulator = () => {
 
     const reset = useCallback(() => {
         stopRunner();
-        const { dataSegment } = parseCode(activeCode);
-        setSimState(getInitialState(dataSegment));
+        const newState = getInitialState();
+        newState.memory.set(dataSegment);
+        setSimState(newState);
+
         if (parsedInstructions.length === 0 && activeCode.trim().length > 0) {
-             toast({ variant: "destructive", title: "Parser Warning", description: "No executable instructions found." });
+             stopReasonRef.current = { variant: "destructive", title: "Parser Warning", description: "No executable instructions found." };
         } else {
-             toast({ title: "Simulator Reset", description: "State cleared and program reloaded." });
+             stopReasonRef.current = { title: "Simulator Reset", description: "State cleared and program reloaded." };
         }
-    }, [activeCode, parsedInstructions.length, stopRunner, toast]);
+    }, [activeCode, dataSegment, parsedInstructions.length, stopRunner]);
 
     useEffect(() => {
         reset();
-    }, [activeFile]);
+    }, [activeFile, reset]);
+
+    useEffect(() => {
+      if (stopReasonRef.current) {
+        toast(stopReasonRef.current);
+        stopReasonRef.current = null;
+      }
+    }, [simState, isRunning, toast]);
+
 
     const step = useCallback(() => {
         if (isRunning) return;
@@ -139,17 +151,22 @@ export const useX86Simulator = () => {
         setIsRunning(true);
         executionStartTimeRef.current = performance.now();
         
-        const runLoop = (timestamp: number) => {
+        const runLoop = () => {
             setSimState(prevState => {
-                 if (prevState.registers.EIP >= CODE_START_ADDRESS + parsedInstructions.length) {
-                    stopRunner({ title: "Execution Finished", description: "End of program reached.", variant: "default" });
+                 if (!isRunningRef.current) { // isRunning has been set to false
+                    return prevState;
+                }
+                if (prevState.registers.EIP >= CODE_START_ADDRESS + parsedInstructions.length) {
+                    stopReasonRef.current = { title: "Execution Finished", description: "End of program reached.", variant: "default" };
+                    stopRunner();
                     return prevState;
                 }
     
                 const currentLineForBreakpoint = lineMap.get(prevState.registers.EIP);
                 
                 if (currentLineForBreakpoint && breakpoints.has(currentLineForBreakpoint)) {
-                    stopRunner({ title: "Execution Paused", description: `Breakpoint hit at line ${currentLineForBreakpoint}.`, variant: "default" });
+                    stopReasonRef.current = { title: "Execution Paused", description: `Breakpoint hit at line ${currentLineForBreakpoint}.`, variant: "default" };
+                    stopRunner();
                     return prevState;
                 }
                 
@@ -167,8 +184,19 @@ export const useX86Simulator = () => {
                 return prevState;
             });
         };
+        
+        const isRunningRef = { current: true };
+        const originalStopRunner = stopRunner;
+        const stopRunnerAndRef = () => {
+            isRunningRef.current = false;
+            originalStopRunner();
+        }
 
         runnerRef.current = requestAnimationFrame(runLoop);
+        
+        return () => {
+          stopRunnerAndRef();
+        }
 
     }, [isRunning, stopRunner, executeSingleInstruction, lineMap, breakpoints, parsedInstructions.length]);
     
@@ -227,13 +255,15 @@ export const useX86Simulator = () => {
             if (newActiveFile) {
                 setActiveFile(newActiveFile);
             } else {
+                // If all files are deleted, create a new one
                 const { files: withNewFile, newName } = fmAddFile([]);
                 setActiveFile(newName);
                 return withNewFile;
             }
+            toast({ title: "File Deleted", description: `"${fileName}" has been removed.`});
             return newFiles;
         });
-    }, [activeFile]);
+    }, [activeFile, toast]);
 
     return {
         registers: simState.registers,

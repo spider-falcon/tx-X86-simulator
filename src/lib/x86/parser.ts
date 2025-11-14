@@ -1,3 +1,4 @@
+
 import type { Instruction } from './types';
 import { CODE_START_ADDRESS } from './constants';
 import { writeMemory } from './memoryManager';
@@ -19,58 +20,72 @@ export function parseCode(code: string): {
   const instructions: Instruction[] = [];
   const labels = new Map<string, number>();
   const lineMap = new Map<number, number>();
-  const dataSegment = new Uint8Array(1024); // 1KB for data
+  const dataSegment = new Uint8Array(1024 * 4); // 4KB for data
   let dataPointer = 0;
 
   const lines = code.split('\n');
   let currentSection = '.text'; // default section
+  const equsToResolve: {label: string, value: string}[] = [];
+
 
   lines.forEach((line, index) => {
       const originalLineNumber = index + 1;
       let cleanedLine = line.replace(/;.*/, '').trim(); // Remove comments and trim
       
+      if (!cleanedLine) return;
+
       if (cleanedLine.toLowerCase().startsWith('section')) {
           currentSection = cleanedLine.split(' ')[1] || '.text';
           return;
       }
       
       if (currentSection === '.data') {
-        const parts = cleanedLine.match(/(?:[^\s"]+|"[^"]*")+/g) || [];
-        if (parts.length < 3) return;
+        const parts = cleanedLine.match(/(?:[^\s"']+|"[^"]*'[^']*'|'[^']+'|"[^"]+")+/g) || [];
+        if (parts.length < 2) return;
 
-        const label = parts[0];
+        const label = parts[0].replace(/:$/, '');
         const directive = parts[1].toLowerCase();
         const value = parts.slice(2).join(' ');
+
+        if (directive === 'equ') {
+          equsToResolve.push({ label, value });
+          return;
+        }
 
         labels.set(label, dataPointer);
 
         if (directive === 'db') {
           const stringLiterals = value.match(/'[^']*'|"[^"]*"/g) || [];
           const numericValues = value.replace(/'[^']*'|"[^"]*"/g, '').split(',').filter(v => v.trim());
-
-          stringLiterals.forEach(s => {
-              const str = s.slice(1, -1);
-              for (let i = 0; i < str.length; i++) {
-                  dataSegment[dataPointer++] = str.charCodeAt(i);
-              }
-          });
-
-          numericValues.forEach(v => {
-              const num = parseInt(v.trim());
-              if (!isNaN(num)) {
-                  dataSegment[dataPointer++] = num;
-              }
-          });
-        } else if(directive === 'equ') {
-            const expression = value;
-            if(expression.trim() === '$ - msg') { // Very specific EQU handler for our sample
-                // We calculate this dynamically now.
-                const msgAddress = labels.get('msg');
-                if (msgAddress !== undefined) {
-                    const len = dataPointer - msgAddress;
-                    labels.set(label, len);
+          
+          if (stringLiterals) {
+            stringLiterals.forEach(s => {
+                const str = s.slice(1, -1);
+                for (let i = 0; i < str.length; i++) {
+                    dataSegment[dataPointer++] = str.charCodeAt(i);
                 }
-            }
+                 // Handle comma separated strings
+                if (value.includes(",")) {
+                    dataSegment[dataPointer++] = 0;
+                }
+            });
+          }
+
+          if (numericValues) {
+            numericValues.forEach(v => {
+                const num = parseInt(v.trim());
+                if (!isNaN(num)) {
+                    dataSegment[dataPointer++] = num;
+                }
+            });
+          }
+        } else if (directive === 'dd') {
+            const values = value.split(',').map(v => parseInt(v.trim())).filter(v => !isNaN(v));
+            values.forEach(v => {
+                const view = new DataView(dataSegment.buffer);
+                view.setUint32(dataPointer, v, true);
+                dataPointer += 4;
+            });
         }
       } else if (currentSection === '.text') {
         // Handle labels
@@ -80,16 +95,10 @@ export function parseCode(code: string): {
           cleanedLine = ''; // Line only contained a label
         } else if (cleanedLine.includes(':')) {
           const colonIndex = cleanedLine.indexOf(':');
-          // Make sure it's not part of something else
-          if (colonIndex > 0 && !isAlphanumeric(cleanedLine[colonIndex -1])) {
-            // It's likely not part of a string or something complex, treat as label
-          } else {
-              const parts = cleanedLine.split(':');
-              const label = parts[0].trim();
-              if(!labels.has(label)) {
-                  labels.set(label, CODE_START_ADDRESS + instructions.length);
-              }
-              cleanedLine = parts.slice(1).join(':').trim();
+          const potentialLabel = cleanedLine.substring(0, colonIndex).trim();
+          if (!potentialLabel.includes(' ')) { // Basic check if it's a label
+            labels.set(potentialLabel, CODE_START_ADDRESS + instructions.length);
+            cleanedLine = cleanedLine.substring(colonIndex + 1).trim();
           }
         }
 
@@ -97,8 +106,7 @@ export function parseCode(code: string): {
           return;
         }
         
-        // Split by space but keep quoted strings together
-        const parts = cleanedLine.match(/(?:[^\s"]+|"[^"]*")+/g) || [];
+        const parts = cleanedLine.match(/(?:[^\s"']+|"[^"]*'[^']*'|'[^']+'|"[^"]+")+/g) || [];
         const operation = parts[0];
         const operandsString = parts.slice(1).join(' ');
 
@@ -124,6 +132,24 @@ export function parseCode(code: string): {
         instructions.push({ line: originalLineNumber, operation, operands: operands.filter(op => op) });
       }
     });
+
+  // Resolve EQU directives at the end
+  equsToResolve.forEach(({label, value}) => {
+    // Very specific handler for `len equ $ - msg`
+    if (value.trim() === '$ - msg') {
+        const msgAddress = labels.get('msg');
+        if (msgAddress !== undefined) {
+          const dollarValue = dataPointer; // `$` is the current address
+          labels.set(label, dollarValue - msgAddress);
+        }
+    } else {
+      const numValue = parseInt(value);
+      if (!isNaN(numValue)) {
+        labels.set(label, numValue);
+      }
+    }
+  });
+
 
   return { instructions, labels, lineMap, dataSegment };
 }
