@@ -21,6 +21,12 @@ type SimulatorState = {
     executionTime: number;
 };
 
+type ToastMessage = {
+    title: string;
+    description: string;
+    variant?: 'default' | 'destructive' | null;
+} | null;
+
 const getInitialState = (): SimulatorState => ({
     registers: { ...INITIAL_REGISTERS },
     flags: { ...INITIAL_FLAGS },
@@ -45,17 +51,19 @@ export const useX86Simulator = () => {
     const [simState, setSimState] = useState<SimulatorState>(getInitialState);
     const [breakpoints, setBreakpoints] = useState<Set<number>>(new Set());
     const [isRunning, setIsRunning] = useState(false);
+    const [toastMessage, setToastMessage] = useState<ToastMessage>(null);
     
     const runnerRef = useRef<number | null>(null);
     const executionStartTimeRef = useRef<number>(0);
-    const stopReasonRef = useRef<{ title: string; description: string; variant?: 'default' | 'destructive' | null } | null>(null);
-
-
-    const stopRunner = useCallback(() => {
+    
+    const stopRunner = useCallback((message: ToastMessage = null) => {
         setIsRunning(false);
         if (runnerRef.current) {
             cancelAnimationFrame(runnerRef.current);
             runnerRef.current = null;
+        }
+        if (message) {
+            setToastMessage(message);
         }
     }, []);
     
@@ -63,15 +71,13 @@ export const useX86Simulator = () => {
         const instructionIndex = currentState.registers.EIP - CODE_START_ADDRESS;
         
         if (instructionIndex < 0 || instructionIndex >= parsedInstructions.length) {
-            stopReasonRef.current = { title: "Execution Halted", description: "End of program reached.", variant: "default" };
-            stopRunner();
+            stopRunner({ title: "Execution Halted", description: "End of program reached.", variant: "default" });
             return null;
         }
         
         const instruction = parsedInstructions[instructionIndex];
         const stop = (reason: string) => {
-            stopReasonRef.current = {title: "Execution Halted", description: reason, variant: "destructive"};
-            stopRunner();
+            stopRunner({title: "Execution Halted", description: reason, variant: "destructive"});
         }
 
         const result = executor.step(
@@ -116,9 +122,9 @@ export const useX86Simulator = () => {
         setSimState(newState);
 
         if (parsedInstructions.length === 0 && activeCode.trim().length > 0) {
-             stopReasonRef.current = { variant: "destructive", title: "Parser Warning", description: "No executable instructions found." };
+             setToastMessage({ variant: "destructive", title: "Parser Warning", description: "No executable instructions found." });
         } else {
-             stopReasonRef.current = { title: "Simulator Reset", description: "State cleared and program reloaded." };
+             setToastMessage({ title: "Simulator Reset", description: "State cleared and program reloaded." });
         }
     }, [activeCode, dataSegment, parsedInstructions.length, stopRunner]);
 
@@ -127,11 +133,11 @@ export const useX86Simulator = () => {
     }, [activeFile, reset]);
 
     useEffect(() => {
-      if (stopReasonRef.current) {
-        toast(stopReasonRef.current);
-        stopReasonRef.current = null;
-      }
-    }, [simState, isRunning, toast]);
+        if (toastMessage) {
+            toast(toastMessage);
+            setToastMessage(null);
+        }
+    }, [toastMessage, toast]);
 
 
     const step = useCallback(() => {
@@ -153,20 +159,18 @@ export const useX86Simulator = () => {
         
         const runLoop = () => {
             setSimState(prevState => {
-                 if (!isRunningRef.current) { // isRunning has been set to false
+                if (runnerRef.current === null) { // isRunning has been set to false
                     return prevState;
                 }
                 if (prevState.registers.EIP >= CODE_START_ADDRESS + parsedInstructions.length) {
-                    stopReasonRef.current = { title: "Execution Finished", description: "End of program reached.", variant: "default" };
-                    stopRunner();
+                    stopRunner({ title: "Execution Finished", description: "End of program reached.", variant: "default" });
                     return prevState;
                 }
     
                 const currentLineForBreakpoint = lineMap.get(prevState.registers.EIP);
                 
                 if (currentLineForBreakpoint && breakpoints.has(currentLineForBreakpoint)) {
-                    stopReasonRef.current = { title: "Execution Paused", description: `Breakpoint hit at line ${currentLineForBreakpoint}.`, variant: "default" };
-                    stopRunner();
+                    stopRunner({ title: "Execution Paused", description: `Breakpoint hit at line ${currentLineForBreakpoint}.`, variant: "default" });
                     return prevState;
                 }
                 
@@ -184,19 +188,8 @@ export const useX86Simulator = () => {
                 return prevState;
             });
         };
-        
-        const isRunningRef = { current: true };
-        const originalStopRunner = stopRunner;
-        const stopRunnerAndRef = () => {
-            isRunningRef.current = false;
-            originalStopRunner();
-        }
 
         runnerRef.current = requestAnimationFrame(runLoop);
-        
-        return () => {
-          stopRunnerAndRef();
-        }
 
     }, [isRunning, stopRunner, executeSingleInstruction, lineMap, breakpoints, parsedInstructions.length]);
     
@@ -241,13 +234,13 @@ export const useX86Simulator = () => {
                 if (activeFile === oldName) {
                     setActiveFile(newName);
                 }
-                toast({ title: "File Renamed", description: `"${oldName}" is now "${newName}".`});
+                setToastMessage({ title: "File Renamed", description: `"${oldName}" is now "${newName}".`});
             } else {
-                toast({ variant: "destructive", title: "Rename failed", description: `A file named "${newName}" already exists.` });
+                setToastMessage({ variant: "destructive", title: "Rename failed", description: `A file named "${newName}" already exists.` });
             }
             return newFiles;
         });
-    }, [activeFile, toast]);
+    }, [activeFile]);
 
     const deleteFile = useCallback((fileName: string) => {
         setFiles(currentFiles => {
@@ -258,12 +251,13 @@ export const useX86Simulator = () => {
                 // If all files are deleted, create a new one
                 const { files: withNewFile, newName } = fmAddFile([]);
                 setActiveFile(newName);
+                setToastMessage({ title: "File Deleted", description: `"${fileName}" has been removed.`});
                 return withNewFile;
             }
-            toast({ title: "File Deleted", description: `"${fileName}" has been removed.`});
+            setToastMessage({ title: "File Deleted", description: `"${fileName}" has been removed.`});
             return newFiles;
         });
-    }, [activeFile, toast]);
+    }, [activeFile]);
 
     return {
         registers: simState.registers,
