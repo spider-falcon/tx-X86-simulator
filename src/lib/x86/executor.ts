@@ -1,4 +1,5 @@
 
+
 import type { Registers, Flags, Memory, Instruction } from './types';
 import { formatHex } from './utils';
 import { pushStack, popStack, readMemory, writeMemory } from './memoryManager';
@@ -51,7 +52,7 @@ function getOperandValue(operand: string, registers: Registers, memory: Memory, 
 }
 
 
-function setOperandValue(operand: string, value: number, registers: Registers, memory: Memory, labels: Map<string, number>): boolean {
+function setOperandValue(operand: string, value: number, registers: Registers, memory: Memory, labels: Map<string, number>): void {
     const upperOperand = operand.toUpperCase();
 
     if (operand.startsWith('[') && operand.endsWith(']')) {
@@ -70,13 +71,11 @@ function setOperandValue(operand: string, value: number, registers: Registers, m
             }
         }
         writeMemory(address, value, 4, memory);
-        return true; // Memory was mutated
     } else if (registers[upperOperand] !== undefined) {
         registers[upperOperand] = value;
     } else {
         throw new Error(`Invalid destination operand: ${operand}`);
     }
-    return false; // Memory was not mutated
 }
 
 
@@ -91,15 +90,13 @@ export function step(
   registers: Registers,
   flags: Flags,
   memory: Memory,
-  memoryMutated: boolean,
   historyLog: string,
   output: string | null,
   callStackUpdate: string[]
-} {
+} | null {
   const newRegisters = { ...registers };
   const newFlags = { ...flags };
-  const newMemory = memory; // Work on the same memory array
-  let memoryMutated = false;
+  const newMemory = new Uint8Array(memory.buffer); // Create a mutable copy for this step
   let callStackUpdate: string[] = [];
 
   let historyLog = `${formatHex(registers.EIP, 8)}: ${instruction.operation} ${instruction.operands.join(', ')}`;
@@ -116,74 +113,57 @@ export function step(
     switch (instruction.operation.toLowerCase()) {
       case 'mov':
         val2 = getOperandValue(op2, newRegisters, newMemory, labels);
-        if (setOperandValue(op1, val2, newRegisters, newMemory, labels)) {
-          memoryMutated = true;
-        }
+        setOperandValue(op1, val2, newRegisters, newMemory, labels);
         break;
       case 'xchg':
         val1 = getOperandValue(op1, newRegisters, newMemory, labels);
         val2 = getOperandValue(op2, newRegisters, newMemory, labels);
-        if(setOperandValue(op1, val2, newRegisters, newMemory, labels)) memoryMutated = true;
-        if(setOperandValue(op2, val1, newRegisters, newMemory, labels)) memoryMutated = true;
+        setOperandValue(op1, val2, newRegisters, newMemory, labels);
+        setOperandValue(op2, val1, newRegisters, newMemory, labels);
         break;
       case 'add':
         val1 = getOperandValue(op1, newRegisters, newMemory, labels);
         val2 = getOperandValue(op2, newRegisters, newMemory, labels);
         result = (val1 + val2) | 0; // Ensure 32-bit integer
-        if(setOperandValue(op1, result, newRegisters, newMemory, labels)) {
-            memoryMutated = true;
-        }
+        setOperandValue(op1, result, newRegisters, newMemory, labels);
         updateFlags(result, val1, val2, newFlags, 'add');
         break;
       case 'sub':
           val1 = getOperandValue(op1, newRegisters, newMemory, labels);
           val2 = getOperandValue(op2, newRegisters, newMemory, labels);
           result = (val1 - val2) | 0;
-          if(setOperandValue(op1, result, newRegisters, newMemory, labels)) {
-              memoryMutated = true;
-          }
+          setOperandValue(op1, result, newRegisters, newMemory, labels);
           updateFlags(result, val1, val2, newFlags, 'sub');
           break;
       case 'xor':
           val1 = getOperandValue(op1, newRegisters, newMemory, labels);
           val2 = getOperandValue(op2, newRegisters, newMemory, labels);
           result = (val1 ^ val2) | 0;
-          if(setOperandValue(op1, result, newRegisters, newMemory, labels)) {
-              memoryMutated = true;
-          }
+          setOperandValue(op1, result, newRegisters, newMemory, labels);
           updateFlags(result, val1, val2, newFlags, 'xor');
           break;
       case 'inc':
         val1 = getOperandValue(op1, newRegisters, newMemory, labels);
         result = (val1 + 1) | 0;
-        if(setOperandValue(op1, result, newRegisters, newMemory, labels)) {
-            memoryMutated = true;
-        }
+        setOperandValue(op1, result, newRegisters, newMemory, labels);
         updateFlags(result, val1, 1, newFlags, 'add');
         break;
       case 'dec':
         val1 = getOperandValue(op1, newRegisters, newMemory, labels);
         result = (val1 - 1) | 0;
-        if(setOperandValue(op1, result, newRegisters, newMemory, labels)) {
-            memoryMutated = true;
-        }
+        setOperandValue(op1, result, newRegisters, newMemory, labels);
         updateFlags(result, val1, 1, newFlags, 'sub');
         break;
       case 'push':
         val1 = getOperandValue(op1, newRegisters, newMemory, labels);
         pushStack(val1, newRegisters, newMemory);
-        memoryMutated = true;
         break;
       case 'pop':
         val1 = popStack(newRegisters, newMemory);
-        if(setOperandValue(op1, val1, newRegisters, newMemory, labels)) {
-            memoryMutated = true;
-        }
-        memoryMutated = true;
+        setOperandValue(op1, val1, newRegisters, newMemory, labels);
         break;
       case 'call':
           pushStack(newRegisters.EIP + 1, newRegisters, newMemory);
-          memoryMutated = true;
           const targetAddress = getOperandValue(op1, newRegisters, newMemory, labels);
           if (targetAddress !== undefined) {
               newRegisters.EIP = targetAddress;
@@ -195,7 +175,6 @@ export function step(
           break;
       case 'ret':
           newRegisters.EIP = popStack(newRegisters, newMemory);
-          memoryMutated = true;
           jump = true;
           callStackUpdate = ['ret'];
           break;
@@ -293,6 +272,7 @@ export function step(
               if (newRegisters.EAX === 1) { // sys_exit
                   output = `Program exited with code ${newRegisters.EBX}.`;
                   stopRunner(output);
+                  return null;
               } else if (newRegisters.EAX === 4) { // sys_write
                   const address = newRegisters.ECX;
                   const length = newRegisters.EDX;
@@ -316,13 +296,12 @@ export function step(
   } catch (e: any) {
     stopRunner(e.message);
     historyLog += ` (Error: ${e.message})`;
+    return null;
   }
   
   if(!jump) {
     newRegisters.EIP += 1;
   }
 
-  return { registers: newRegisters, flags: newFlags, memory: newMemory, memoryMutated, historyLog, output, callStackUpdate };
+  return { registers: newRegisters, flags: newFlags, memory: newMemory, historyLog, output, callStackUpdate };
 }
-
-    
