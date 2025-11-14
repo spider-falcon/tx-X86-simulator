@@ -112,7 +112,7 @@ const MemoryMatrixView: FC<{ memory: Memory }> = ({ memory }) => {
 
     return (
         <TooltipProvider>
-        <div className="grid grid-cols-32 gap-px p-2 bg-border rounded-lg">
+        <div className="grid grid-cols-32 gap-px p-2 bg-border rounded-lg max-w-[520px] mx-auto">
             {Array.from(memory.slice(startAddress, startAddress + matrixSize * matrixSize)).map((byte, index) => (
                 <Tooltip key={index} delayDuration={100}>
                     <TooltipTrigger>
