@@ -62,10 +62,18 @@ export const useX86Simulator = () => {
     const [simState, setSimState] = useState<SimulatorState>(() => getInitialState(activeCode));
     const [breakpoints, setBreakpoints] = useState<Set<number>>(new Set());
     const [isRunning, setIsRunning] = useState(false);
-    const [toastMessage, setToastMessage] = useState<ToastMessage>(null);
     
     const runnerRef = useRef<number | null>(null);
     const executionStartTimeRef = useRef<number>(0);
+    const toastMessageQueue = useRef<ToastMessage | null>(null);
+
+    // Effect to display toast messages from the queue
+    useEffect(() => {
+        if (toastMessageQueue.current) {
+            toast(toastMessageQueue.current);
+            toastMessageQueue.current = null;
+        }
+    }, [simState, isRunning, toast]);
     
     const stopRunner = useCallback((message: ToastMessage = null) => {
         setIsRunning(false);
@@ -74,19 +82,20 @@ export const useX86Simulator = () => {
             runnerRef.current = null;
         }
         if (message) {
-            setToastMessage(message);
+            toastMessageQueue.current = message;
         }
     }, []);
 
     const reset = useCallback(() => {
         stopRunner();
-        setSimState(getInitialState(activeCode));
+        const newState = getInitialState(activeCode);
+        setSimState(newState);
 
         const { instructions } = parseCode(activeCode);
         if (instructions.length === 0 && activeCode.trim().length > 0) {
-             setToastMessage({ variant: "destructive", title: "Parser Warning", description: "No executable instructions found." });
+             toastMessageQueue.current = { variant: "destructive", title: "Parser Warning", description: "No executable instructions found." };
         } else {
-             setToastMessage({ title: "Simulator Reset", description: "State cleared and program reloaded." });
+             toastMessageQueue.current = { title: "Simulator Reset", description: "State cleared and program reloaded." };
         }
     }, [activeCode, stopRunner]);
 
@@ -145,13 +154,6 @@ export const useX86Simulator = () => {
         };
     }, [stopRunner]);
 
-    useEffect(() => {
-        if (toastMessage) {
-            toast(toastMessage);
-            setToastMessage(null);
-        }
-    }, [toastMessage, toast]);
-
     const step = useCallback(() => {
         if (isRunning || simState.parsedInstructions.length === 0) return;
         setSimState(prevState => {
@@ -167,7 +169,9 @@ export const useX86Simulator = () => {
         }
 
         if (simState.parsedInstructions.length === 0) {
-            setToastMessage({ title: "Cannot Run", description: "No instructions to execute.", variant: "destructive" });
+            toastMessageQueue.current = { title: "Cannot Run", description: "No instructions to execute.", variant: "destructive" };
+            // Trigger a re-render to show the toast
+            setSimState(s => ({...s}));
             return;
         }
         
@@ -255,9 +259,9 @@ export const useX86Simulator = () => {
                 if (activeFile === oldName) {
                     setActiveFile(newName);
                 }
-                setToastMessage({ title: "File Renamed", description: `"${oldName}" is now "${newName}".`});
+                toastMessageQueue.current = { title: "File Renamed", description: `"${oldName}" is now "${newName}".`};
             } else {
-                setToastMessage({ variant: "destructive", title: "Rename failed", description: `A file named "${newName}" already exists.` });
+                toastMessageQueue.current = { variant: "destructive", title: "Rename failed", description: `A file named "${newName}" already exists.` };
             }
             return newFiles;
         });
@@ -272,10 +276,10 @@ export const useX86Simulator = () => {
                 // If all files are deleted, create a new one
                 const { files: withNewFile, newName } = fmAddFile([]);
                 setActiveFile(newName);
-                setToastMessage({ title: "File Deleted", description: `"${fileName}" has been removed.`});
+                toastMessageQueue.current = { title: "File Deleted", description: `"${fileName}" has been removed.`};
                 return withNewFile;
             }
-            setToastMessage({ title: "File Deleted", description: `"${fileName}" has been removed.`});
+            toastMessageQueue.current = { title: "File Deleted", description: `"${fileName}" has been removed.`};
             return newFiles;
         });
     }, [activeFile]);
@@ -311,5 +315,3 @@ export const useX86Simulator = () => {
         currentLine,
     };
 };
-
-    
