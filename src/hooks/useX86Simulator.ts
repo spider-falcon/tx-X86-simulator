@@ -21,6 +21,13 @@ type SimulatorState = {
     executionTime: number;
 };
 
+type ToastMessage = {
+    id: number;
+    variant?: "default" | "destructive" | null;
+    title: string;
+    description: string;
+};
+
 const getInitialState = (dataSegment: Uint8Array): SimulatorState => {
     const initialMemory = new Uint8Array(MEMORY_SIZE);
     initialMemory.set(dataSegment, 0);
@@ -48,22 +55,38 @@ export const useX86Simulator = () => {
     const [simState, setSimState] = useState<SimulatorState>(() => getInitialState(dataSegment));
     const [breakpoints, setBreakpoints] = useState<Set<number>>(new Set());
     const [isRunning, setIsRunning] = useState(false);
+    const [toastQueue, setToastQueue] = useState<ToastMessage[]>([]);
     
     const runnerRef = useRef<NodeJS.Timeout | null>(null);
     const executionStartTimeRef = useRef<number>(0);
+    const stateRef = useRef(simState);
+    stateRef.current = simState;
+
+    useEffect(() => {
+        if (toastQueue.length > 0) {
+            const message = toastQueue[0];
+            toast({ variant: message.variant, title: message.title, description: message.description });
+            setToastQueue(q => q.slice(1));
+        }
+    }, [toastQueue, toast]);
+
+    const queueToast = (title: string, description: string, variant: ToastMessage['variant'] = 'default') => {
+        const newMessage: ToastMessage = { id: Date.now(), title, description, variant };
+        setToastQueue(q => [...q, newMessage]);
+    };
 
     const currentLine = useMemo(() => lineMap.get(simState.registers.EIP) || 0, [simState.registers.EIP, lineMap]);
     
-    const stopRunner = useCallback((message?: {title: string, description: string}) => {
+    const stopRunner = useCallback((message?: {title: string, description: string, variant?: ToastMessage['variant']}) => {
         if (runnerRef.current) {
             clearInterval(runnerRef.current);
             runnerRef.current = null;
         }
         setIsRunning(false);
         if (message) {
-            toast({ variant: "destructive", title: message.title, description: message.description });
+            queueToast(message.title, message.description, message.variant || 'destructive');
         }
-    }, [toast]);
+    }, []);
     
     const executeSingleInstruction = useCallback((currentState: SimulatorState): SimulatorState => {
         const instructionIndex = currentState.registers.EIP - CODE_START_ADDRESS;
@@ -74,18 +97,24 @@ export const useX86Simulator = () => {
         }
         
         const instruction = parsedInstructions[instructionIndex];
-        const result = executor.step(instruction, currentState.registers, currentState.flags, currentState.memory, labels, (msg) => stopRunner({title: "Execution Halted", description: msg}));
+        const result = executor.step(
+            instruction, 
+            currentState.registers, 
+            currentState.flags, 
+            currentState.memory, 
+            labels, 
+            (msg) => stopRunner({title: "Execution Halted", description: msg})
+        );
         
         const newHistory = [result.historyLog, ...currentState.history].slice(0, 100);
-        
         const newOutput = result.output ? [result.output, ...currentState.output].slice(0, 100) : currentState.output;
         
         let newCallStack = currentState.callStack;
         if (result.callStackUpdate.length > 0) {
             if (result.callStackUpdate[0] === 'ret') {
-                newCallStack = newCallStack.slice(1);
+                newCallStack = currentState.callStack.slice(1);
             } else {
-                newCallStack = [result.callStackUpdate[0], ...newCallStack];
+                newCallStack = [result.callStackUpdate[0], ...currentState.callStack];
             }
         }
         
@@ -104,25 +133,19 @@ export const useX86Simulator = () => {
     }, [parsedInstructions, labels, stopRunner]);
 
     const reset = useCallback(() => {
-        if (runnerRef.current) {
-            clearInterval(runnerRef.current);
-            runnerRef.current = null;
-        }
-        setIsRunning(false);
-        const { instructions, dataSegment } = parseCode(activeCode);
+        stopRunner();
+        const { dataSegment } = parseCode(activeCode);
         setSimState(getInitialState(dataSegment));
         if (parsedInstructions.length === 0) {
-             toast({ variant: "destructive", title: "Parser Warning", description: "No executable instructions found." });
+             queueToast("Parser Warning", "No executable instructions found.", "destructive");
         } else {
-             toast({ title: "Simulator Reset", description: "State cleared and program reloaded." });
+             queueToast("Simulator Reset", "State cleared and program reloaded.", "default");
         }
-    }, [activeCode, parsedInstructions.length, toast]);
+    }, [activeCode, parsedInstructions.length, stopRunner]);
 
     useEffect(() => {
-      const { dataSegment } = parseCode(activeCode);
-      setSimState(getInitialState(dataSegment));
-       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [activeFile, activeCode]);
+        reset();
+    }, [activeFile]);
 
 
     const step = useCallback(() => {
@@ -140,30 +163,28 @@ export const useX86Simulator = () => {
         executionStartTimeRef.current = performance.now();
 
         runnerRef.current = setInterval(() => {
-            setSimState(prevState => {
-                if (prevState.registers.EIP >= CODE_START_ADDRESS + parsedInstructions.length) {
-                    stopRunner();
-                    toast({ title: "Execution Finished", description: "End of program reached." });
-                    return prevState;
-                }
+             const currentState = stateRef.current;
 
-                const currentLineForBreakpoint = lineMap.get(prevState.registers.EIP);
-                
-                if (currentLineForBreakpoint && breakpoints.has(currentLineForBreakpoint)) {
-                    stopRunner();
-                    toast({ title: "Execution Paused", description: `Breakpoint hit at line ${currentLineForBreakpoint}.` });
-                    return prevState;
-                }
-                
-                const nextState = executeSingleInstruction(prevState);
-                
-                return {
-                    ...nextState,
-                    executionTime: performance.now() - executionStartTimeRef.current,
-                };
+            if (currentState.registers.EIP >= CODE_START_ADDRESS + parsedInstructions.length) {
+                stopRunner({ title: "Execution Finished", description: "End of program reached.", variant: "default" });
+                return;
+            }
+
+            const currentLineForBreakpoint = lineMap.get(currentState.registers.EIP);
+            
+            if (currentLineForBreakpoint && breakpoints.has(currentLineForBreakpoint)) {
+                stopRunner({ title: "Execution Paused", description: `Breakpoint hit at line ${currentLineForBreakpoint}.`, variant: "default" });
+                return;
+            }
+            
+            const nextState = executeSingleInstruction(currentState);
+            
+            setSimState({
+                ...nextState,
+                executionTime: performance.now() - executionStartTimeRef.current,
             });
         }, 50); 
-    }, [isRunning, stopRunner, executeSingleInstruction, lineMap, breakpoints, toast, parsedInstructions.length]);
+    }, [isRunning, stopRunner, executeSingleInstruction, lineMap, breakpoints, parsedInstructions.length]);
     
     useEffect(() => {
         return () => {
@@ -204,13 +225,13 @@ export const useX86Simulator = () => {
                 if (activeFile === oldName) {
                     setActiveFile(newName);
                 }
-                toast({ title: "File Renamed", description: `"${oldName}" is now "${newName}".`});
+                queueToast("File Renamed", `"${oldName}" is now "${newName}".`, "default");
             } else {
-                toast({ variant: "destructive", title: "Rename failed", description: `A file named "${newName}" already exists.` });
+                queueToast("Rename failed", `A file named "${newName}" already exists.`, "destructive");
             }
             return newFiles;
         });
-    }, [activeFile, toast]);
+    }, [activeFile]);
 
     const deleteFile = useCallback((fileName: string) => {
         setFiles(currentFiles => {
@@ -252,5 +273,3 @@ export const useX86Simulator = () => {
         instructions: parsedInstructions,
     };
 };
-
-    
