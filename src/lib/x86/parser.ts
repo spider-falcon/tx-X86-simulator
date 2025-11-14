@@ -1,4 +1,5 @@
 
+
 import type { Instruction } from './types';
 import { CODE_START_ADDRESS } from './constants';
 import { writeMemory } from './memoryManager';
@@ -34,8 +35,9 @@ export function parseCode(code: string): {
       
       if (!cleanedLine) return;
 
-      if (cleanedLine.toLowerCase().startsWith('section')) {
-          currentSection = cleanedLine.split(' ')[1] || '.text';
+      const sectionMatch = cleanedLine.match(/^section\s+([.a-zA-Z_][a-zA-Z0-9_.]*)/i);
+      if (sectionMatch) {
+          currentSection = sectionMatch[1].toLowerCase();
           return;
       }
       
@@ -59,24 +61,37 @@ export function parseCode(code: string): {
               const stringLiterals = value.match(/'[^']*'|"[^"]*"/g) || [];
               const numericValues = value.replace(/'[^']*'|"[^"]*"/g, '').split(',').filter(v => v.trim());
               
-              if (stringLiterals) {
+              if (stringLiterals.length > 0) {
                 stringLiterals.forEach(s => {
                     const str = s.slice(1, -1);
                     for (let i = 0; i < str.length; i++) {
                         dataSegment[dataPointer++] = str.charCodeAt(i);
                     }
                      // Handle comma separated strings by adding a null terminator if needed
-                    if (value.includes(",")) {
-                        dataSegment[dataPointer++] = 0;
+                    if (numericValues.length > 0 || stringLiterals.length > 1) {
+                         if (s.endsWith(",")) {
+                            dataSegment[dataPointer++] = 0;
+                         }
                     }
                 });
+                // Final null terminator if value doesn't end with comma
+                const trimmedValue = value.trim();
+                if (!trimmedValue.endsWith(',')) {
+                   const lastChar = trimmedValue.charAt(trimmedValue.length - 1);
+                   if (lastChar === '0' && (trimmedValue.charAt(trimmedValue.length - 2) === ' ' || trimmedValue.charAt(trimmedValue.length-2) === ',')) {
+                     dataSegment[dataPointer++] = 0;
+                   }
+                }
               }
 
-              if (numericValues) {
+              if (numericValues.length > 0) {
                 numericValues.forEach(v => {
-                    const num = parseInt(v.trim());
-                    if (!isNaN(num)) {
-                        dataSegment[dataPointer++] = num;
+                    const trimmedV = v.trim();
+                    if (trimmedV) {
+                       const num = parseInt(trimmedV);
+                        if (!isNaN(num)) {
+                            dataSegment[dataPointer++] = num;
+                        }
                     }
                 });
               }
@@ -149,12 +164,23 @@ export function parseCode(code: string): {
   // Resolve EQU directives at the end
   equsToResolve.forEach(({label, value}) => {
     // Very specific handler for `len equ $ - msg`
-    if (value.includes('$ -')) {
-        const msgLabel = value.split('-')[1].trim();
+    const match = value.match(/\$\s*-\s*([a-zA-Z_][a-zA-Z0-9_]*)/);
+    if (match) {
+        const msgLabel = match[1];
         const msgAddress = labels.get(msgLabel);
         if (msgAddress !== undefined) {
-          const dollarValue = dataPointer; // `$` is the current address
-          labels.set(label, dollarValue - msgAddress);
+          // The '$' refers to the address *at the point where the EQU was defined*.
+          // Our simplified parser approximates this by taking the current data pointer,
+          // but this might be inaccurate if EQU is not at the end of the data section.
+          // For the given examples, it works because `len equ $ - msg` comes right after `msg`.
+          const equAddress = labels.get(label);
+          if (equAddress !== undefined) {
+             labels.set(label, equAddress - msgAddress);
+          } else {
+              // Fallback for when the label itself wasn't assigned an address (e.g. if it wasn't a data-defining line)
+               const dollarValue = dataPointer;
+               labels.set(label, dollarValue - msgAddress);
+          }
         }
     } else {
       const numValue = parseInt(value);
@@ -167,3 +193,5 @@ export function parseCode(code: string): {
 
   return { instructions, labels, lineMap, dataSegment };
 }
+
+    

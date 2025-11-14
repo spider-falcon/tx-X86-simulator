@@ -87,6 +87,64 @@ end_factorial:
   ret
 `
   },
+    {
+    name: "string_reversal.asm",
+    code: `; String Reversal Using Stack
+; This program reverses a string by pushing each character onto the stack
+; and then popping them back in reverse order
+
+section .data
+    original db 'HELLO', 0          ; Original string (null-terminated)
+    len equ $ - original - 1        ; Length of string (excluding null terminator)
+    
+section .bss
+    reversed resb 20                ; Buffer for reversed string
+
+section .text
+    global _start
+
+_start:
+    ; Initialize registers
+    mov esi, original               ; ESI points to original string
+    mov ecx, len                    ; ECX = string length
+    xor ebx, ebx                    ; EBX = counter (0)
+
+push_loop:
+    ; Push each character onto the stack
+    cmp ebx, ecx                    ; Check if we've pushed all characters
+    jge pop_setup                   ; If yes, move to popping
+    
+    movzx eax, byte [esi + ebx]     ; Load character (zero-extended)
+    push eax                        ; Push character onto stack
+    
+    inc ebx                         ; Increment counter
+    jmp push_loop                   ; Continue loop
+
+pop_setup:
+    ; Setup for popping characters
+    mov edi, reversed               ; EDI points to reversed buffer
+    xor ebx, ebx                    ; Reset counter
+
+pop_loop:
+    ; Pop each character from the stack
+    cmp ebx, ecx                    ; Check if we've popped all characters
+    jge done                        ; If yes, we're done
+    
+    pop eax                         ; Pop character from stack
+    mov byte [edi + ebx], al        ; Store character in reversed buffer
+    
+    inc ebx                         ; Increment counter
+    jmp pop_loop                    ; Continue loop
+
+done:
+    ; Add null terminator
+    mov byte [edi + ebx], 0
+    
+    ; Exit program
+    mov eax, 1                      ; sys_exit
+    xor ebx, ebx                    ; exit code 0
+    int 0x80`
+  },
   {
     name: "fibonacci.asm",
     code: `; Iterative Fibonacci sequence
@@ -159,120 +217,78 @@ _start:
 ; This example is adapted to use sys_write (int 0x80) for output.
 
 section .data
-    ; Strings for output
-    fact_msg_1 db "Factorial of ", 6
-    fact_num_str db " is ", 4
-    fact_result_str db "  ", 10, 0 ; Newline and null terminator
-
-    max_msg_1 db "Max of ", 7
-    max_num_a_str db " and ", 5
-    max_num_b_str db " is ", 4
-    max_result_str db "  ", 10, 0
-
-    ; Integer data
-    num_factorial dd 5
-    num_a dd 42
-    num_b dd 29
+    fact_msg db "Factorial of 5 is "
+    fact_msg_len equ $ - fact_msg
+    
+    newline db 10
 
 section .bss
-    ; Space for string conversions
-    temp_str resb 10
+    result_str resb 10
+
+section .text
+    global _start
 
 _start:
     ; --- Factorial calculation (using a loop) ---
-    mov eax, [num_factorial]
-    mov ecx, eax
+    mov eax, 5       ; Number for factorial
+    mov ecx, eax     ; Use ECX as counter
     dec ecx
     
 factorial_loop:
-    cmp ecx, 1
-    jle factorial_end
-    mul ecx
+    mul ecx          ; EDX:EAX = EAX * ECX
     dec ecx
-    jmp factorial_loop
+    cmp ecx, 1
+    jg factorial_loop
 
-factorial_end:
-    ; EAX now holds the factorial result
+    ; EAX now holds the factorial result (120)
     
-    ; --- Print factorial result ---
-    pusha
-    mov edi, temp_str
-    call int_to_str
-    mov edx, edi
-    mov ecx, fact_msg_1
+    ; --- Print factorial message ---
+    mov edx, fact_msg_len
+    mov ecx, fact_msg
     mov ebx, 1
     mov eax, 4
     int 0x80
-    popa
-
-    pusha
-    mov eax, [num_factorial]
-    mov edi, temp_str
+    
+    ; --- Convert and print result ---
+    mov ebx, eax     ; Save result in EBX
+    mov eax, ebx
+    mov edi, result_str
     call int_to_str
-    mov edx, edi
-    mov ecx, fact_num_str
+    
+    mov edx, 10 ; The length of the string converted (can be improved)
+    mov ecx, result_str
     mov ebx, 1
     mov eax, 4
     int 0x80
-    popa
     
-    ; --- Function call to find the maximum of two numbers ---
-    push dword [num_b]
-    push dword [num_a]
-    call find_maximum
-    add esp, 8
-    ; The result is returned in EAX
-    mov [result_max], eax
+    ; --- Print newline ---
+    mov edx, 1
+    mov ecx, newline
+    mov ebx, 1
+    mov eax, 4
+    int 0x80
 
-    ; --- Exit (for simplicity, skipping the second print) ---
+    ; --- Exit ---
     mov eax, 1
-    mov ebx, [result_max]
+    xor ebx, ebx
     int 0x80
-
-
-; --- Function to find the maximum of two integers ---
-find_maximum:
-    push ebp
-    mov ebp, esp
-    
-    mov eax, [ebp+8]  ; First argument
-    mov ebx, [ebp+12] ; Second argument
-
-    cmp eax, ebx
-    jge a_is_greater
-    mov eax, ebx      ; EBX is greater, move to EAX
-    jmp end_func
-
-a_is_greater:
-    ; EAX is already greater or equal
-
-end_func:
-    pop ebp
-    ret
 
 ; --- Function to convert integer in EAX to string at EDI ---
+; Result is not null-terminated. A fixed length is assumed for printing.
 int_to_str:
-    xor ecx, ecx
-    mov ebx, 10
-divide_loop:
-    inc ecx
+    mov ecx, 10
+    mov esi, 9 ; Index to store last digit
+convert_loop:
     xor edx, edx
-    div ebx
-    add edx, 48
-    push edx
+    div ecx
+    add dl, '0'
+    mov [result_str + esi], dl
+    dec esi
     cmp eax, 0
-    jnz divide_loop
-print_loop:
-    dec ecx
-    pop eax
-    mov [edi], al
-    inc edi
-    cmp ecx, 0
-    jnz print_loop
-    mov byte [edi], 0
+    jne convert_loop
     ret
-
-result_max: resd 1
 `
   }
 ];
+
+    
